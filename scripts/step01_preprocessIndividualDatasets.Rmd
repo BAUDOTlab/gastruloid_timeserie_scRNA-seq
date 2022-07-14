@@ -1,5 +1,5 @@
 ---
-title: "01_Data preprocessing - Analysis datasets"
+title: "01_Data preprocessing - Analysis datasets" %A% analysis datasets c'est pas très claire, mettre un titre plus explicite?
 author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
@@ -78,11 +78,12 @@ library(tidyr)
 
 <!-- ************** -->
 
-The major parts of the following analyse have been inspired by the pipeline used in the article [Rossi et al. Cell Stem Cell 2020](https://doi.org/10.1016/j.stem.2020.10.013).
-The associated code is available on github, at the [Cardiac_Gastruloids](https://github.com/nbroguiere/Cardiac_Gastruloids) repository.
+The majority of the following analyses have been inspired by the pipeline used in the article [Rossi et al. Cell Stem Cell 2020](https://doi.org/10.1016/j.stem.2020.10.013).
+The code associated with this publication is available on GitHub in the [Cardiac_Gastruloids](https://github.com/nbroguiere/Cardiac_Gastruloids) repository.
 
-The idea of the analysis is to analyze and compare the data obtained in the lab to the ones retrieved from the Rossi et al. article.
+The goal is to analyze and compare the data obtained in our lab with the data retrieved from the Rossi et al. article. %A% mais notre goal c'est paas que de comparer ? On a l'impression que si vu la façon dont la phrase est formulée. Peut etre qu'il faut juste ajouter la description de notre dataset avant pour clarifier.
 The data used in the Rossi et al. article will be named "reference data" in the rest of the document.
+%A% and the data that were procuded in our lab ? Give the name here too.
 These data were recovered from the [GEO website](https://www.ncbi.nlm.nih.gov/geo/) with the accession number GEO: GSE158999.
 The accessed files are:
 
@@ -95,8 +96,8 @@ The accessed files are:
 -   metadata.tsv.gz.
 
 The Rossi et al. article also refers and uses the *in vivo* atlas from [Pijuan-Sala Griffiths Gottgens et al. Nature 2019](https://doi.org/10.1038/s41586-019-0933-9).
-Indeed, in Rossi et al, a classifier has been trained on the atlas data.
-I directly download the classifier from the above mentioned github repository.
+Indeed, in Rossi et al. a classifier has been trained on the atlas data.
+I directly download the classifier from the above-mentioned GitHub repository.
 
 I also downloaded the data of the atlas of Pijan-Sala et al. using a terminal with the following command lines
 
@@ -111,17 +112,17 @@ tar -zxvf atlas_data.tar.gz
 
 ## Directories managment
 
-To reproduce the analysis, it is recommended to set up all these directories.
+To reproduce the analyses, it is recommended to set up all these directories.
 I assume that all the input files are stored in the same directory `inputData`.
-This directory is divided in 5 subdirectories:
+This directory is divided in 5 subdirectories: %A% "this" directory refers to 'inputDData' ?
 
--   2 of them are dedicated to the raw data to be analyzed, from the Marseille Medical Genetics (MMG) laboratory and reference datasets (`zaffranRawData` and `rossiRawData`, respectively),
+-   2 of them are dedicated to the raw data to be analyzed, from the Marseille Medical Genetics (MMG) laboratory and reference datasets (`zaffranRawData` and `rossiRawData`, respectively);
 
--   1 directory contains the data to create an atlas object from Pijuan-Sala et al. (`atlas`),
+-   1 directory contains the data to create an atlas object from Pijuan-Sala et al. (`atlas`);
 
--   1 directory stores the classifier provided by the reference Rossi et al. based on the atlas of Pijuan-Sala et al. (`scmap_pijuansala_classifier`),
+-   1 directory stores the classifier based on the atlas of Pijuan-Sala et al. and provided by the reference Rossi et al. (`scmap_pijuansala_classifier`),
 
--   1 directory contains input tables provided by the reference Rossi et al. (`InputTables`).
+-   1 directory contains the input tables provided by the reference Rossi et al. (`InputTables`). %A% c'est quoi ces tables ? C'est la liste données plus haut?
 
 ```{r directoriesExe, include=FALSE}
 basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis/"
@@ -177,7 +178,7 @@ if(!dir.exists(fig.folder)){dir.create(fig.folder)}
 
 ## Load custom color tables
 
-To keep a coherent coloration on the plots through the analysis, I set up a vector of colors.
+To keep a coherent coloration on the plots throughout the analyses, I set up a vector of colors.
 
 ```{r colors}
 colors.table <- read.table(file=paste0(inputTables.folder, "ClusterColors.tsv"), sep="\t", header=T, comment.char="", as.is=T)
@@ -188,8 +189,7 @@ colors.use_stages <- setNames(c("#be465c", "#b04b3d","#c86633", "#d0a63f", "#998
 
 ## Custom variables for the analysis
 
-Some following functions can work with parallelization.
-Here I configure how parallelization should work.
+Some functions can work with parallelization. I here configure how parallelization should work.
 
 ```{r commonVar}
 # Parallelization
