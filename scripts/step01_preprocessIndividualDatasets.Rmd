@@ -187,7 +187,7 @@ colors.use_transferred <- setNames(colors.table$blind_friendly[!is.na(colors.tab
 colors.use_stages <- setNames(c("#be465c", "#b04b3d","#c86633", "#d0a63f", "#998138", "#90b03d", "#60a756", "#45c097", "#5e8bd5", "#6d71d8", "#573585", "#bd80d5", "#b853a2", "#ba4b7d"), c("Day_04", "Day_05", "Day_06", "Day_07", "Day_10", "E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5"))
 ```
 
-## Custom variables for the analysis
+## Custom variables for the analysis %A% est-ce que c'est le bon titre ? Ca a l'air de parler exclusivement de // dessous
 
 Some functions can work with parallelization. I here configure how parallelization should work.
 
@@ -206,10 +206,10 @@ options(future.seed = 26)
 ## Load the reference dataset
 
 The `Read10X` function only needs the directory in which the input files have been stored.
-It creates an object interpreting the barcodes, features and matrix files.\
+The function creates an object interpreting the barcodes, features and matrix files.\
 The `CreateSeuratObject` function initialize a seurat object.
 
-<!--# It also permits to filter cells and genes according to a lower threshold of gene expression. Here I kept genes expressed in at least 3 cells and cells with at least 100 genes detected. -->
+<!--# It also permits to filter cells and genes according to a lower threshold of gene expression. Here, I kept genes expressed in at least 3 cells, and cells with at least 100 detected genes. -->
 
 ```{r refDataLoad, results='hold'}
 ref.dataset.folder <- paste0(basePath, "inputData/ref_data/")
@@ -222,12 +222,12 @@ head(ref.4d.SO)
 dim(ref.4d.SO)
 ```
 
-The reference dataset contains `r dim(ref.4d.SO)[[2]]` cells on which `r dim(ref.4d.SO)[[1]]` features (genes) were detected.
+The reference dataset contains `r dim(ref.4d.SO)[[2]]` cells, on which `r dim(ref.4d.SO)[[1]]` features (genes) were detected.
 
 ## Add metadata
 
-The metadata file was created in the Rossi et al. analysis, and provided to guide users.
-I add the `stage` and `Replicate` metadata to the seurat object under the names `day` and `replicate` column name respectively.
+The metadata file was created in the Rossi et al. analysis and is provided to guide the users.
+I add the `stage` and `Replicate` metadata to the seurat object under the `day` and `replicate` column names, respectively.
 
 ```{r refAddMetaD}
 ref.md <- read.table(file=paste0(ref.dataset.folder, "metadata.tsv.gz"), sep="\t", header=TRUE, stringsAsFactors=F)
@@ -243,9 +243,9 @@ str(ref.4d.SO@meta.data)
 
 There are 5 metadata stored in a data frame.
 Each of them describe the cells.
-Besides the imported metadata from the external file (`day` and `replicate`), there are `n_Count_RNA` and `nFeature_RNA` information:
+Besides the imported metadata from the external file (`day` and `replicate`), there are `n_Count_RNA` and `nFeature_RNA` information: %A% du coup ca fait 4 au total, les 2 importées et les 2 décrites ici, alors que tu parles de 5 ?
 
--   `nCount_RNA` is the number of reads counted in every droplet with a gel bead associated to a cell,
+-   `nCount_RNA` is the number of reads counted in every droplet with a gel bead associated to a cell;
 
 -   `nFeature_RNA` is the number of different features (genes) detected in every droplet.
 
@@ -258,7 +258,7 @@ unique(ref.4d.SO@meta.data$day)
 
 ### Homogenize labels (`day`, `dataset`)
 
-For the sake of the analysis, I need to manipulate the labels to make them coherent between all the labels.
+For the sake of the analysis, I need to manipulate the labels to make them coherent between all the labels. %A% pas très clair: cohérent avec quoi ? Avec les données de l'atlas et les données de MMG ?
 
 ```{r homogenize_ref}
 # modify day label
@@ -274,7 +274,7 @@ ref_dataset_names <- unique(ref.4d.SO$dataset)
 A new metadata has been created.
 The values this metadata can take are among `r unique(ref.4d.SO$dataset)` depending on the origin and the stage (day) of the sequenced cells.
 
-Now here's what the metadata looks like:
+Now, here's what the metadata looks like:
 
 `r data.frame(head(ref.4d.SO@meta.data)) %>%
   knitr::kable() %>% 
@@ -283,10 +283,10 @@ Now here's what the metadata looks like:
 ## Split into sub-datasets
 
 For the following parts of the analysis, I will split the dataset `ros.4d.SO` into 4 sub-datasets.
-I use the `SplitObject` function from the Seurat package (PROVIDE REFERENCE).
+I use the `SplitObject` function from the Seurat package (PROVIDE REFERENCE). %A% yep
 By providing an attribute (metadata column name), the object is splitted into a list of subsetted objects.
 
-I split the dataset according to the `day` the gastruloids were sequenced.
+I split the dataset according to the `day` the gastruloids were sequenced.%A% maybe explain why ?
 
 ```{r splitRefData}
 # Split the object
@@ -306,7 +306,7 @@ Size of the entire dataset:
   knitr::kable(align = "lrr") %>% 
   kable_styling(bootstrap_options = c("striped", "hover"))`
   
-Size of sub-datasets:
+Sizes of the sub-datasets:
 
 `r data.frame(cbind(sapply(refSO.list, function(SO) SO@project.name), t(sapply(refSO.list, dim)))) %>% 
   setNames(c('Dataset', 'Nbr of features', 'Nbr of cells')) %>%
@@ -318,20 +318,19 @@ Size of sub-datasets:
 # MMG laboratory data
 
 The lab got the scRNAseq data day by day.
-The sequencing saturation was not good enough for the day 5.
-As the consequence, this day has been resequenced.
-It results in that I have five datasets: one dataset for the days 4, 6 and 10 and two datasets for the day 5.
+The sequencing saturation was not good enough for the day 5. As the consequence, this day has been resequenced.
+It hence have five datasets: one dataset for the days 4, 6 and 10 and two datasets for the day 5.
 
 For each dataset, I will execute the following steps:
 
--   load and interprete raw data (barcodes, features and matrix files) with `Read10X` function, and create a seurat object (`CreateSeuratObject` function),
+-   load and interpret raw data (barcodes, features and matrix files) with `Read10X` function and create a seurat object (`CreateSeuratObject` function),
 
 -   add metadata.
 
-## Load the 5 datasets
+## Load the 5 sub-datasets
 
 There are five sub-datasets to load.
-I create a seurat object for each of them that I store in a list.
+I create a seurat object for each of them, and store them in a list.
 The project name of each sub-dataset is already given.
 
 ```{r labDataLoad, results='hold'}
@@ -355,12 +354,12 @@ for (x in lab_dirs){
 labSO.list
 ```
 
-As well as for the project names for the reference sub-datasets, the project name of the lab sub-datasets take the values among: `r lab_dataset_names`.
+Similarly to the project names of the reference sub-datasets, the project names of the MMG lab sub-datasets take their values among: `r lab_dataset_names`.
 
 ## Add metadata
 
-I need to add metadata like for the reference dataset.
-I will add the information of the day the gastruloids were sequenced, the dataset name - like the reference dataset name were built - and the replicate.
+Similarly to the reference dataset, I need to add metadata to the MMG lab dataset.
+I will add the information of the day the gastruloids were sequenced, the dataset name - in a similar way as the reference dataset names were built - and the replicate.
 
 The replicate metadata is required as there are two datasets sequenced on the day 5.
 It will be useful to differenciate cells between both datasets.
@@ -389,22 +388,22 @@ data.frame(head(labSO.list[[1]]@meta.data)) %>%
 
 # Nomenclature for cell names
 
-The names of the cells have a different nomenclature between the reference and the MMG laboratory sub-datasets.
+The names of the cells have a different nomenclature in the reference and the MMG laboratory sub-datasets.
 On one hand, the reference cell names are already custom names with the biological origin (`GAS` for gastruloids), the days the gastruloid were sequenced, the batch number and the UMI.
-On the other hand, the laboratory cell names only consists on the UMIs.
+On the other hand, the MMG laboratory cell names only consists of the UMIs.
 
 The library used by 10X Genomics is limited, and provide a limited number of unique UMI barcodes.
 (PROVIDE DETAILS).
-Hence, working with data obtained from multiple sequencing experiments might lead to an overlap fo UMI barcodes between datasets.
+Hence, working with data obtained from multiple sequencing experiments might lead to an overlap of UMI barcodes between datasets.
 
-Hence, I decide to create a nomenclature to rename all the cells under a unique identifier.
-Thus, each cell will be identified by
+I hence decided to create a nomenclature to rename all the cells under a unique identifier.
+Thus, each cell will be identified by:
 
 -   ref/lab whether the data come from Rossi et al. or the MMG laboratory,
 
--   the dataset value previously added to the metadata,
+-   the dataset value previously added to the metadata, %A% c'est pas number plutot que value ici?
 
--   the replicate value, also present in the metadata and
+-   the replicate value, also present in the metadata and%A% c'est pas number plutot que value ici?
 
 -   the UMI provided by 10x Genomics.
 
@@ -423,7 +422,7 @@ print(colnames(refSO.list$ref_day_04)[1])
 print(colnames(labSO.list$lab_day_04)[1])
 ```
 
-We can see that there is as many unique cell identifiers as the number of cells among all the sub-datasets.
+We can see that there are as many unique cell identifiers as the number of cells among all the sub-datasets.
 
 ```{r uniqCellID_ref, results='hold'}
 nbCells <- Reduce("+" , lapply(refSO.list, function(SO) dim(SO)[2])) +
@@ -440,13 +439,13 @@ print(paste('Nbr of cell identifiers:', nbIDs))
 
 \clearpage
 
-Now, all the sub-datasets are prepared for the analysis.
-First, I will proceed to the quality control of the cells, after what I will realize the standard preprocessing workflow of Seurat.
-Then, I will be able to remove the doublets using DoubletFinder library (PROVIDE SOURCE).
-Finally, I will investigate if there is sources of unwanted variation among the replicates.
+Now, all the sub-datasets are prepared for the analysis. %A% cette analyse concerne uniquement les lab data ou aussi les reference data? Si c'est les deux, comme c'est indiqué plus bas, l'indiquer ici.
+First, I will control the quality of the cells, after what I will realize the standard preprocessing workflow of Seurat. %A% "after what I will realize" pas clair, réaliser est un faux-ami en anglais. Si tu veux dire : après cela j'applique le workflow de preprocessing standard de Seurat, c'est pas vraiment ce qui et écrit
+Then, I will be able to remove the doublets using DoubletFinder library (PROVIDE SOURCE). %A% pourquoi "be able"? Tu pourrais pas le faire si tu avais pas appliqué les étapes précédentes?
+Finally, I will investigate if there are sources of unwanted variation among the replicates.%A% pourquoi que parmis les réplicats et pas entre les conditions ?
 
 First and foremost, I gather all the data into a common object.
-Thus, they are stored in a list.
+Thus, they are stored in a list. %A% je comprends pas pourquoi "ainsi ils sont stockés dans une liste"?
 The computational advantage of it takes place in the use of the function of `lapply()` .
 It allows to apply a function to all members of a list in one command.\
 All the sub-datasets (reference and lab data) will be analyzed on the same pipeline.
@@ -461,7 +460,7 @@ gc(verbose = FALSE)
 str(allSO.list, max.level = 2)
 ```
 
-Now, all sub-datasets Seurat objects are stored into a list.
+Now, all sub-datasets Seurat objects are stored into a list. %A% c'est pas une répétition de ce qui est plus haut ?
 The names of the list are the `project.name` of each sub-dataset.
 
 As the number of cells could decrease during the following steps, I will print a table with the number of cells, but also the number of detected features in each sub-dataset.
@@ -505,7 +504,7 @@ ggplot(size_suball, aes(x = day, y = Nbr_of_cells)) +
 
 # Quality control
 
-The cells can be filtered out based on multiple criteria, like:
+The cells can be filtered-out based on multiple criteria, like:
 
 -   the number of features detected in a cell transcriptome,
 
@@ -513,7 +512,7 @@ The cells can be filtered out based on multiple criteria, like:
 
 -   the percentage of mitochondrial counts.
 
-Thus, the feature plot of the `nCount_RNA` an the `percent.mt` metadata will guide me regarding the threshold to apply for filtering out the low quality cells.
+The feature plot of the `nCount_RNA` an the `percent.mt` metadata will guide me regarding the threshold to apply for filtering out the low quality cells.
 
 ## Percentage of mitochondrial reads & cutoffs
 
@@ -547,13 +546,13 @@ lapply(allSO.list, function(SO) {
 })
 ```
 
-The reference sub-datasets show a mitochondrial content that never exceeds 15% of the transcripts in cells.
+The reference sub-datasets show a mitochondrial content that never exceed 15% of the transcripts in the cells.
 In addition, cells never have less than 1.5% of mitochondrial content.
-It is the reason why there is no orange line on the 4 first plots (plots on reference sub-datasets).
-One can suggest that the data were already filtered.
-In contrast, some cells in the lab data have a mitochondrial content close to 80%.
+It is the reason why there is no orange line on the 4 first plots (corresponding to the plots on reference sub-datasets).
+It is possible that the data were already filtered. %A% tu peux pas le voir dans le code qu'ils donnent sur github?
+In contrast, some cells in the MMG lab data have a mitochondrial content close to 80%.
 
-I will keep the cells whose percentage is between 1.5% and 10% (orange and blue lines, resp.).
+I will keep the cells whose percentage of mitochondrial genes is between 1.5% and 10% (orange and blue lines, resp.).
 
 Information coming from [10X Genomics](https://kb.10xgenomics.com/hc/en-us/articles/360001086611-Why-do-I-see-a-high-level-of-mitochondrial-gene-expression-)
 
@@ -571,7 +570,7 @@ It is also mentioned in [Luecken MD and Theis FJ *Mol Syst Biol*. 2019](https://
 <!--# future_lapply(allSO.list, function(x) FeatureScatter(object=x, feature1="nCount_RNA", feature2="percent.mt") + ggtitle(paste0("Level of mitochondrial expression (in %)\nby cells\n", x@project.name)) + NoLegend(), future.seed = 26) -->
 
 Rossi et al. was filtering out cells with a number of read counts lower than 2000 (green line).
-Added to this one, I will also remove the cells with a number of read counts higher than 150.000 (purple line).
+Added to this one, I will also remove the cells with a number of read counts higher than 150.000 (purple line).%A% Je comprends pas la formulation "Added to this one, "
 
 ```{r message=FALSE, out.width="30%", warning=FALSE, fig.show='hold'}
 lapply(allSO.list, function(SO) {
@@ -585,8 +584,8 @@ The reference sub-datasets never have less than 3000 read counts.
 It is the reason why there is no purple line on the 4 first plots (plots on reference sub-datasets).
 Actually, it appears that they never have less than 5000 read counts.
 
-Furthermore, the higher threshold leads to filter out some outliers either in reference and laboratory sub-datasets.
-The 2 datasets of the laboratory fifth day sequencing do not reach such number read counts.
+Furthermore, the higher threshold leads to filter out some outliers either in reference and laboratory sub-datasets. %A% il faudrait vérifier la consistance et nommer les données de Fabienne/Stéphane toujours de la même manière: il y a un mélange de MMG, MMG lab, lab, laboratory ... Je pense que MMG lab est le plus clair.
+The 2 datasets of the laboratory fifth day do not reach such number read counts. %A% je pense que les datasets splittés par jour sont appelés sub-datasets ailleurs, garder toujours la meme terminologie pour éviter les confusions. Sinon ca veut dire que tu ne considères aucun des deux dataset jour 5 ?
 
 ## Minimum of feature's diversity
 
@@ -605,9 +604,9 @@ Thus, a minimum of 1800 detected features per cell will be requested (blue line)
 
 ## Isolated features
 
-Among the thousands of detected features, some of them are expressed in few cells.
-Such features do not provide information on the cell heterogeneity.
-It is also good to know that filtering out features expressed in less than 50 cells (red dashed line) will make difficult to detect clusters that could gather less than 50 cells.
+Among the thousands of detected features, some of them are expressed only in few cells.
+Such features do not provide information on the cell heterogeneity. %A% ben si au contraire, du coup c'est pas très clair
+It is also important to notice that filtering out features expressed in less than 50 cells (red dashed line) will make difficult to detect clusters that could gather less than 50 cells.
 
 ```{r message=FALSE, out.width="30%", warning=FALSE, fig.show='hold'}
 # Create dataframe
@@ -637,12 +636,12 @@ lapply(1:length(countcells.df.list), function(i) {
     
 ```
 
-In order to limit the number of dropouts, and still, being able to identify small clusters, the features expressed in less than 8 cells will be removed.
+In order to limit the number of dropouts, while still being able to identify small clusters, the features expressed in less than 8 cells will be removed. %A% mais le nombre de dropout ne se controle pas non ? Tu controles juste le filtre?
 
 ## Apply QC
 
-Considering the multiple quality control criteria all together, I confirm the previously settled thresholds.
-The low quality cells will be removed.
+Considering the multiple quality control criteria alltogether, I confirm the previously settled thresholds.
+The low quality cells will be removed according to these selected thresholds.
 
 ```{r message=FALSE, out.width="30%", warning=FALSE, fig.show='hold'}
 # lapply(allSO.list, function(SO) {
@@ -671,11 +670,11 @@ lapply(allSO.list, function(SO) {
 
 ```
 
-The cells with a high content of mitochondrial expressed genes are under the blue line (minimum of 1800 features), and also at the left of the green line (3.000 read counts minimum).
-Such cell with a low count depth (count per cell), few detected features and a high mitochondrial content are indicative of cells whose cytoplasmic mRNA has leaked out through a broken membrane, and thus, only mRNA located in the mitochondria is still conserved ([Luecken MD and Theis FJ *Mol Syst Biol*. 2019](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6582955/)).
+The cells with a high content of mitochondrial genes are under the blue line (minimum of 1800 features), and also at the left of the green line (3.000 read counts minimum).
+Such cells with a low count depth (count per cell), few detected features and a high mitochondrial content are indicative of cells whose cytoplasmic mRNA has leaked out through a broken membrane, and thus, only mRNA located in the mitochondria is still conserved ([Luecken MD and Theis FJ *Mol Syst Biol*. 2019](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6582955/)).
 
 In this section, I apply all the cutoffs determined in the previous steps.
-As a result, the sub-datasets will have either less features and cells.
+As a result, the sub-datasets will have either less features or less cells.
 
 ```{r filterQC}
 allSO.list <- lapply(1:length(allSO.list), function(i) {
@@ -730,7 +729,7 @@ ggplot(size_suball_track, aes(x = day, y = Nbr_of_cells)) +
     facet_grid(.~ origin, scales = "free_x", space = "free")
 ```
 
-SAY SOMETHING THAT ROSSI ET AL DATA WERE ALREADY PREPROCESSED
+SAY SOMETHING THAT ROSSI ET AL DATA WERE ALREADY PREPROCESSED %A% yep
 
 ```{r include = FALSE}
 gc()
@@ -739,9 +738,9 @@ gc()
 # Seurat Standard Preprocessing Workflow
 
 To compare the gene expression across multiple cells, the data have to be normalized.
-I use the default parameter of the `NormalizeData` function.
+I use the default parameters of the `NormalizeData` function.
 It means that the method used is called *LogNormalize*.
-With this method, the feature counts for each cell are divided by the total counts that cell and multiplied by the scale.factor (10.000, by default).
+With this method, the feature counts of each cell are divided by the total counts of that cell and multiplied by the scale.factor (10.000, by default).
 This is then natural-log transformed using log1p.
 
 ```{r normalization}
@@ -764,11 +763,11 @@ data.frame(GetAssayData(allSO.list$ref_day_04, slot = "data")[1:3,1:5]) %>%
 
 I continue with the standard preprocessing steps, using default parameters:
 
--   highly variable features (HVG) detection, with the function `FindVariableFeatures` , where 2000 features are identified as having the most cell-to-cell variation,
+-   highly variable features (HVG) detection, with the function `FindVariableFeatures` , where 2000 features are identified as having the most cell-to-cell variation;
 
--   scale the data, via a linear transformation, using the `ScaleData` function, on all features (more details below),
+-   scale the data, via a linear transformation, using the `ScaleData` function, on all features (more details below);
 
--   perform linear reduction dimension with Principal Component Analysis (PCA) to identify the sources of heterogeneity in every sub-dataset, through 50 principal components (PCs),
+-   perform linear reduction dimension with Principal Component Analysis (PCA) to identify the sources of heterogeneity in every sub-dataset, through 50 principal components (PCs);
 
 -   plot an ElbowPlot to visualize the most informative PCs.
 
@@ -785,11 +784,11 @@ allSO.list <- future_lapply(allSO.list,
 ```
 
 The function `ScaleData` performs a linear transformation (so called *scaling*).
-In detail, it shifts gene expressions to make the mean at 0 (negative values arise), and scales the gene expressions to have their variance equal to 1.
+In details, it shifts gene expressions to make the mean at 0 (negative values arise), and scales the gene expressions to have their variance equal to 1.
 Concretely, it standardizes the expression of each gene.
-This step gives equal weight in downstream analyses, so that highly-expressed genes do not dominate (\<<https://satijalab.org/seurat/articles/pbmc3k_tutorial.html>\>).
+This step gives equal weight in downstream analyses, so that highly-expressed genes do not dominate (\<<https://satijalab.org/seurat/articles/pbmc3k_tutorial.html>\>).%A% equal weight to what?
 
-From the scaling step, a new slot named `scale.data` has been created.
+From the scaling step, a new slot named `scale.data` has been created. %A% c'est quoi "slot"?
 Below is an example of the same features in the same cells as above.
 
 ```{r results='hold'}
@@ -802,10 +801,9 @@ data.frame(GetAssayData(allSO.list$ref_day_04, slot = "scale.data")[1:3,1:5]) %>
 The PCA was performed with the identified HVG as input.
 The *Elbow plots* below show for each sub-datasets how much each PC is informative - in term of the percentage of variance.
 
-In the analysis realized by Rossi et al., the PCA was done to compute 30 PCs only.
-All the downstream analysis was considering all the PCs.
-Here, I use the default parameters of the `RunPCA` function.
-Thus, it computes 50 PCs.
+In the analysis done by Rossi et al., the PCA was done to compute 30 PCs only.
+All the downstream analysis was considering all the PCs. %A% all the 30 PCs? La formulation est un peu bizarre
+Here, I use the default parameters of the `RunPCA` function, which computes 50 PCs.
 
 ```{r out.width="33%"}
 lapply(allSO.list, function(SO) {
@@ -820,16 +818,16 @@ lapply(allSO.list, function(SO) {
 By taking into account the advises from the [Seurat - Guided Clustering Tutorial vignette](https://satijalab.org/seurat/articles/pbmc3k_tutorial.html), the downstream analysis will be done on the 30 first PCs for all the sub-datasets.
 
 Then, I go through the community detection among the cells.
-The edges are constructed using a k-nearest neighbors (KNN) graph, based on the euclidean distances previously obtained on the PCA space.
-The weights of the edges are based on the shared overlap in their local neighborhood, method call Jaccard similarity.
+The edges are constructed using a k-nearest neighbors (KNN) graph, based on the euclidean distances previously obtained on the PCA space. % using the first 30 components?
+The weights of the edges are based on the shared overlap in their local neighborhood, a method call Jaccard similarity.
 These 2 steps are done by using the `FindNeighbors` function.
 \hfill [Seurat - Guided Clustering Tutorial vignette](<https://satijalab.org/seurat/articles/pbmc3k_tutorial.html>)
 
-Once I obtain a graph on the data, I run the `FindClusters` function.
+Once I have obtained a graph on the data, I run the `FindClusters` function.
 It applies the Louvain algorithm (by default).
 This algorithm optimizes the modularity of the graph.
 
--   Modularity allows to assess the best division of a network (or graph). It also depends on a resolution parameter. Higher the value of the resolution, higher the number of clusters. \*
+-   Modularity allows to assess the best division of a network (or graph). It also depends on a resolution parameter. The higher the value of the resolution, the larger the number of clusters. \*
 
 Originally, the analysis realized by Rossi et al. set the resolution parameter at 4.6.
 Here, I test the Louvain algorithm according to multiple levels of resolution (0.1, 0.5, 1, 2 and 5).
