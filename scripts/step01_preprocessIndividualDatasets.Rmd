@@ -1,5 +1,5 @@
 ---
-title: "01_Data preprocessing - Analysis datasets" %A% analysis datasets c'est pas très claire, mettre un titre plus explicite?
+title: "01_Data preprocessing - Analysis datasets" %A% analysis datasets c'est pas très claire, mettre un titre plus explicite? %C% Sub-datasets preparation and preprocessing ?
 author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
@@ -81,7 +81,7 @@ library(tidyr)
 The majority of the following analyses have been inspired by the pipeline used in the article [Rossi et al. Cell Stem Cell 2020](https://doi.org/10.1016/j.stem.2020.10.013).
 The code associated with this publication is available on GitHub in the [Cardiac_Gastruloids](https://github.com/nbroguiere/Cardiac_Gastruloids) repository.
 
-The goal is to analyze and compare the data obtained in our lab with the data retrieved from the Rossi et al. article. %A% mais notre goal c'est paas que de comparer ? On a l'impression que si vu la façon dont la phrase est formulée. Peut etre qu'il faut juste ajouter la description de notre dataset avant pour clarifier.
+The goal is to analyze and compare the data obtained in our lab with the data retrieved from the Rossi et al. article. %A% mais notre goal c'est paas que de comparer ? On a l'impression que si vu la façon dont la phrase est formulée. Peut etre qu'il faut juste ajouter la description de notre dataset avant pour clarifier. %C% ...
 The data used in the Rossi et al. article will be named "reference data" in the rest of the document.
 %A% and the data that were procuded in our lab ? Give the name here too.
 These data were recovered from the [GEO website](https://www.ncbi.nlm.nih.gov/geo/) with the accession number GEO: GSE158999.
@@ -96,7 +96,7 @@ The accessed files are:
 -   metadata.tsv.gz.
 
 The Rossi et al. article also refers and uses the *in vivo* atlas from [Pijuan-Sala Griffiths Gottgens et al. Nature 2019](https://doi.org/10.1038/s41586-019-0933-9).
-Indeed, in Rossi et al. a classifier has been trained on the atlas data.
+Indeed, in Rossi et al. a classifier has been trained on the atlas data. %C% à reformuler
 I directly download the classifier from the above-mentioned GitHub repository.
 
 I also downloaded the data of the atlas of Pijan-Sala et al. using a terminal with the following command lines
@@ -114,7 +114,7 @@ tar -zxvf atlas_data.tar.gz
 
 To reproduce the analyses, it is recommended to set up all these directories.
 I assume that all the input files are stored in the same directory `inputData`.
-This directory is divided in 5 subdirectories: %A% "this" directory refers to 'inputDData' ?
+This directory is divided in 5 subdirectories: %A% "this" directory refers to 'inputDData' ? %C% mieux vaut que je répète 'inputData' ?
 
 -   2 of them are dedicated to the raw data to be analyzed, from the Marseille Medical Genetics (MMG) laboratory and reference datasets (`zaffranRawData` and `rossiRawData`, respectively);
 
@@ -122,7 +122,7 @@ This directory is divided in 5 subdirectories: %A% "this" directory refers to 'i
 
 -   1 directory stores the classifier based on the atlas of Pijuan-Sala et al. and provided by the reference Rossi et al. (`scmap_pijuansala_classifier`),
 
--   1 directory contains the input tables provided by the reference Rossi et al. (`InputTables`). %A% c'est quoi ces tables ? C'est la liste données plus haut?
+-   1 directory contains the input tables provided by the reference Rossi et al. (`InputTables`). %A% c'est quoi ces tables ? C'est la liste données plus haut? %C% rien à voir avec la liste en-haut. Fichier tsv pour nommer les clusters par ex, ou pour utiliser toujours les mêmes couleurs. Il y a une liste de genes d'interet aussi (utilisée dans l'analyse de Rossi)
 
 ```{r directoriesExe, include=FALSE}
 basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis/"
@@ -256,9 +256,10 @@ Here is an example for the metadata named `day`: `unique(ref.4d.SO@meta.data$day
 unique(ref.4d.SO@meta.data$day)
 ```
 
-### Homogenize labels (`day`, `dataset`)
+### Homogenize labels (`day`, `dataset`) %C% Labels modification - creation
 
 For the sake of the analysis, I need to manipulate the labels to make them coherent between all the labels. %A% pas très clair: cohérent avec quoi ? Avec les données de l'atlas et les données de MMG ?
+%C% In the reference dataset, the `day` metadata is loaded in the previous part. However, the I edit it in order to nicely sort them (`5<11` and not the reverse). 
 
 ```{r homogenize_ref}
 # modify day label
@@ -287,6 +288,7 @@ I use the `SplitObject` function from the Seurat package (PROVIDE REFERENCE). %A
 By providing an attribute (metadata column name), the object is splitted into a list of subsetted objects.
 
 I split the dataset according to the `day` the gastruloids were sequenced.%A% maybe explain why ?
+%C% Check the protocol, but it hsould be because of the sequencing was realized per days separately, it comes out that days are the entity. Before being merged,it is recommended to perform a quality control on every entity (see next part).
 
 ```{r splitRefData}
 # Split the object
@@ -317,7 +319,7 @@ Sizes of the sub-datasets:
 
 # MMG laboratory data
 
-The lab got the scRNAseq data day by day.
+The MMG lab got the scRNAseq data day by day.
 The sequencing saturation was not good enough for the day 5. As the consequence, this day has been resequenced.
 It hence have five datasets: one dataset for the days 4, 6 and 10 and two datasets for the day 5.
 
@@ -403,7 +405,7 @@ Thus, each cell will be identified by:
 
 -   the dataset value previously added to the metadata, %A% c'est pas number plutot que value ici?
 
--   the replicate value, also present in the metadata and%A% c'est pas number plutot que value ici?
+-   the replicate number, also present in the metadata and%A% c'est pas number plutot que value ici? %C% changed
 
 -   the UMI provided by 10x Genomics.
 
@@ -439,16 +441,16 @@ print(paste('Nbr of cell identifiers:', nbIDs))
 
 \clearpage
 
-Now, all the sub-datasets are prepared for the analysis. %A% cette analyse concerne uniquement les lab data ou aussi les reference data? Si c'est les deux, comme c'est indiqué plus bas, l'indiquer ici.
-First, I will control the quality of the cells, after what I will realize the standard preprocessing workflow of Seurat. %A% "after what I will realize" pas clair, réaliser est un faux-ami en anglais. Si tu veux dire : après cela j'applique le workflow de preprocessing standard de Seurat, c'est pas vraiment ce qui et écrit
-Then, I will be able to remove the doublets using DoubletFinder library (PROVIDE SOURCE). %A% pourquoi "be able"? Tu pourrais pas le faire si tu avais pas appliqué les étapes précédentes?
+Now, all the sub-datasets, either from the reference and the MMG lab data, are prepared for the analysis. %A% cette analyse concerne uniquement les lab data ou aussi les reference data? Si c'est les deux, comme c'est indiqué plus bas, l'indiquer ici. %C% modified
+First, I will control the quality of the cells, after what I will perform the standard preprocessing workflow of Seurat. %A% "after what I will realize" pas clair, réaliser est un faux-ami en anglais. Si tu veux dire : après cela j'applique le workflow de preprocessing standard de Seurat, c'est pas vraiment ce qui et écrit %C% modified
+Then, I will be able to remove the doublets using DoubletFinder library (PROVIDE SOURCE). %A% pourquoi "be able"? Tu pourrais pas le faire si tu avais pas appliqué les étapes précédentes? %C% il faut que les étapes de préprocess soient effectuées pour utiliser DF
 Finally, I will investigate if there are sources of unwanted variation among the replicates.%A% pourquoi que parmis les réplicats et pas entre les conditions ?
 
 First and foremost, I gather all the data into a common object.
-Thus, they are stored in a list. %A% je comprends pas pourquoi "ainsi ils sont stockés dans une liste"?
+Thus, they are stored in a list. %A% je comprends pas pourquoi "ainsi ils sont stockés dans une liste"? %C% simplification : First and foremost, I gather all the data into a list.
 The computational advantage of it takes place in the use of the function of `lapply()` .
 It allows to apply a function to all members of a list in one command.\
-All the sub-datasets (reference and lab data) will be analyzed on the same pipeline.
+All the sub-datasets (reference and MMG lab data) will be analyzed on the same pipeline.
 
 ```{r allSOlist, warning=FALSE, message=FALSE, results='hold'}
 allSO.list <- do.call(c, list(refSO.list, labSO.list))
@@ -460,7 +462,7 @@ gc(verbose = FALSE)
 str(allSO.list, max.level = 2)
 ```
 
-Now, all sub-datasets Seurat objects are stored into a list. %A% c'est pas une répétition de ce qui est plus haut ?
+Now, all sub-datasets Seurat objects are stored into a list. %A% c'est pas une répétition de ce qui est plus haut ? %C% un peu, mais en haut je précise l'avantage d'avoir une liste. Ici, ça me permet de dire que la liste est nommée. (visible dans le rapport grace a la commande str() juste au-dessus)
 The names of the list are the `project.name` of each sub-dataset.
 
 As the number of cells could decrease during the following steps, I will print a table with the number of cells, but also the number of detected features in each sub-dataset.
@@ -549,7 +551,7 @@ lapply(allSO.list, function(SO) {
 The reference sub-datasets show a mitochondrial content that never exceed 15% of the transcripts in the cells.
 In addition, cells never have less than 1.5% of mitochondrial content.
 It is the reason why there is no orange line on the 4 first plots (corresponding to the plots on reference sub-datasets).
-It is possible that the data were already filtered. %A% tu peux pas le voir dans le code qu'ils donnent sur github?
+It is possible that the data were already filtered. %A% tu peux pas le voir dans le code qu'ils donnent sur github? %C% dans le code github, il y a des filtres, mais sur les données qui sont publiées, ils ne servent à rien. Les données publiées sont clairement tronquées sur les cellules de mauvaise qualité.
 In contrast, some cells in the MMG lab data have a mitochondrial content close to 80%.
 
 I will keep the cells whose percentage of mitochondrial genes is between 1.5% and 10% (orange and blue lines, resp.).
@@ -570,7 +572,7 @@ It is also mentioned in [Luecken MD and Theis FJ *Mol Syst Biol*. 2019](https://
 <!--# future_lapply(allSO.list, function(x) FeatureScatter(object=x, feature1="nCount_RNA", feature2="percent.mt") + ggtitle(paste0("Level of mitochondrial expression (in %)\nby cells\n", x@project.name)) + NoLegend(), future.seed = 26) -->
 
 Rossi et al. was filtering out cells with a number of read counts lower than 2000 (green line).
-Added to this one, I will also remove the cells with a number of read counts higher than 150.000 (purple line).%A% Je comprends pas la formulation "Added to this one, "
+Added to this one, I will also remove the cells with a number of read counts higher than 150.000 (purple line).%A% Je comprends pas la formulation "Added to this one, " %C% In addition to this threshold, 
 
 ```{r message=FALSE, out.width="30%", warning=FALSE, fig.show='hold'}
 lapply(allSO.list, function(SO) {
@@ -584,8 +586,8 @@ The reference sub-datasets never have less than 3000 read counts.
 It is the reason why there is no purple line on the 4 first plots (plots on reference sub-datasets).
 Actually, it appears that they never have less than 5000 read counts.
 
-Furthermore, the higher threshold leads to filter out some outliers either in reference and laboratory sub-datasets. %A% il faudrait vérifier la consistance et nommer les données de Fabienne/Stéphane toujours de la même manière: il y a un mélange de MMG, MMG lab, lab, laboratory ... Je pense que MMG lab est le plus clair.
-The 2 datasets of the laboratory fifth day do not reach such number read counts. %A% je pense que les datasets splittés par jour sont appelés sub-datasets ailleurs, garder toujours la meme terminologie pour éviter les confusions. Sinon ca veut dire que tu ne considères aucun des deux dataset jour 5 ?
+Furthermore, the higher threshold leads to filter out some outliers either in reference and laboratory sub-datasets. %A% il faudrait vérifier la consistance et nommer les données de Fabienne/Stéphane toujours de la même manière: il y a un mélange de MMG, MMG lab, lab, laboratory ... Je pense que MMG lab est le plus clair. %C% OKAY, à faire
+The 2 sub-datasets of the MMG lab fifth day do not reach such number of read counts. %A% je pense que les datasets splittés par jour sont appelés sub-datasets ailleurs, garder toujours la meme terminologie pour éviter les confusions. Sinon ca veut dire que tu ne considères aucun des deux dataset jour 5 ? %C% corrigé ; c'est seulement de la description des plots qui sont affichés en amont. Comme je n'ai aucun point au-dessus du seuil, la ligne ne s'affiche pas pour les plots mentionnés
 
 ## Minimum of feature's diversity
 
@@ -598,14 +600,14 @@ lapply(allSO.list, function(SO) {
 })
 ```
 
-The reference sub-datasets never have less than 2000 features per cell, while the lab sub-datasets range from `r min(sapply(allSO.list[5:9], function(x) min(x@meta.data$nFeature_RNA)))` to `r max(sapply(allSO.list[5:9], function(x) max(x@meta.data$nFeature_RNA)))` features per cell.
+The reference sub-datasets never have less than 2000 features per cell, while the MMG lab sub-datasets range from `r min(sapply(allSO.list[5:9], function(x) min(x@meta.data$nFeature_RNA)))` to `r max(sapply(allSO.list[5:9], function(x) max(x@meta.data$nFeature_RNA)))` features per cell.
 Many cells of the lab sub-datasets show a low number of detected features.
 Thus, a minimum of 1800 detected features per cell will be requested (blue line).
 
 ## Isolated features
 
 Among the thousands of detected features, some of them are expressed only in few cells.
-Such features do not provide information on the cell heterogeneity. %A% ben si au contraire, du coup c'est pas très clair
+Such features do not provide information on the cell heterogeneity. %A% ben si au contraire, du coup c'est pas très clair %C% few cells ~ 10-15 cellules. Sur les jeux de données de 7000 cellules, ça n'apporte aucune information. ça pourrait aussi bien être de la contamination. 
 It is also important to notice that filtering out features expressed in less than 50 cells (red dashed line) will make difficult to detect clusters that could gather less than 50 cells.
 
 ```{r message=FALSE, out.width="30%", warning=FALSE, fig.show='hold'}
@@ -636,7 +638,7 @@ lapply(1:length(countcells.df.list), function(i) {
     
 ```
 
-In order to limit the number of dropouts, while still being able to identify small clusters, the features expressed in less than 8 cells will be removed. %A% mais le nombre de dropout ne se controle pas non ? Tu controles juste le filtre?
+In order to limit the number of dropouts, while still being able to identify small clusters, the features expressed in less than 8 cells will be removed. %A% mais le nombre de dropout ne se controle pas non ? Tu controles juste le filtre? %C% c'est ça, en jouant sur les filtres, on peut limiter dans une petite mesure le nombre de dropout. remplacer "to limit" par "to minimize" ?
 
 ## Apply QC
 
@@ -787,8 +789,9 @@ The function `ScaleData` performs a linear transformation (so called *scaling*).
 In details, it shifts gene expressions to make the mean at 0 (negative values arise), and scales the gene expressions to have their variance equal to 1.
 Concretely, it standardizes the expression of each gene.
 This step gives equal weight in downstream analyses, so that highly-expressed genes do not dominate (\<<https://satijalab.org/seurat/articles/pbmc3k_tutorial.html>\>).%A% equal weight to what?
+%C% By this step, highly-expressed genes do not dominate over others, ...
 
-From the scaling step, a new slot named `scale.data` has been created. %A% c'est quoi "slot"?
+From the scaling step, a new slot named `scale.data` has been created. %A% c'est quoi "slot"? C'est dans la structure des objects seurat ; [...] new slot named `scale.data` is added to the seurat object.
 Below is an example of the same features in the same cells as above.
 
 ```{r results='hold'}
@@ -802,7 +805,7 @@ The PCA was performed with the identified HVG as input.
 The *Elbow plots* below show for each sub-datasets how much each PC is informative - in term of the percentage of variance.
 
 In the analysis done by Rossi et al., the PCA was done to compute 30 PCs only.
-All the downstream analysis was considering all the PCs. %A% all the 30 PCs? La formulation est un peu bizarre
+All the downstream analysis was considering all the PCs. %A% all the 30 PCs? La formulation est un peu bizarre %C% ...
 Here, I use the default parameters of the `RunPCA` function, which computes 50 PCs.
 
 ```{r out.width="33%"}
@@ -879,8 +882,8 @@ for (ares in res){
 }
 ```
 
-For the sub-dataset `day_11` of the MMG laboratory, it appears that the best value for the resolution parameter should be at 1. %A% et pour les autres? Pourquoi préciser seulement pour celui-la?
-I set the `Idents` of all sub-datasets to the clusters defined under the resolution level 1.%A% je comprends pas ce que c'est le idents ?
+For the sub-dataset `day_11` of the MMG lab, it appears that the best value for the resolution parameter should be 1. %A% et pour les autres? Pourquoi préciser seulement pour celui-la? %C% As an example, for the sub-dataset ...
+I set the `Idents` of all sub-datasets to the clusters defined under the resolution level 1.%A% je comprends pas ce que c'est le idents ? %C% c'est une sorte de pointeur vers la meta donnes à utiliser par defaut, très utile pour les plots (ici, label = TRUE, va afficher les numeros de cluster pour la resolution 1) déjà vu l.270.
 
 ```{r message=FALSE, out.width="50%", fig.show='hold'}
 allSO.list <- lapply(allSO.list,
@@ -921,7 +924,7 @@ Two types of doublets have been identified:
 
 -   heterotypic doublets, that derived from transcriptionally distinct cells.
 
-In fact, DoubletFinder is sensitive to the heterotypic doublets, but not to the homotypic ones (from [DoubletFinder github repository](https://github.com/chris-mcginnis-ucsf/DoubletFinder)). %A% ca veeut dire quoi "is sensitive"? Is able to detect ? Ca a l'air d'etre un defaut alors que je pense que c'est une qualité ?
+In fact, DoubletFinder is sensitive to the heterotypic doublets, but not to the homotypic ones (from [DoubletFinder github repository](https://github.com/chris-mcginnis-ucsf/DoubletFinder)). %A% ca veeut dire quoi "is sensitive"? Is able to detect ? Ca a l'air d'etre un defaut alors que je pense que c'est une qualité ? %C% oui, sensitive = "able to detect".
 
 To better identify the heterotypic doublets, it is neccessary to rely on cell annotation.
 
@@ -929,7 +932,7 @@ To better identify the heterotypic doublets, it is neccessary to rely on cell an
 
 The cells need to be annotated for the identification of heterotypic doublets. I will hence annotate the cells of the MMG lab dataset in a similar way as it is done in the pipeline of Rossi et al. I directly load the classifier provided by Rossi et al. for 1165 gene markers.
 This classifier was generated by Rossi et al. using the data from the Pijuan-Sala et al. atlas.
-I prefer to warn you that this classifier has nothing related to artificial intelligence classifiers. %A% je mettrais pas ca, je vois pas ce que ca apporte comme info, on se demande pourquoi tu nous avertis, et ca fait poser plein de questions. Tu avais aussi dit au début "a classifier has been trained" ce qui est typiquement de la syntaxe ML/IA, donc c'est bizarre.
+I prefer to warn you that this classifier has nothing related to artificial intelligence classifiers. %A% je mettrais pas ca, je vois pas ce que ca apporte comme info, on se demande pourquoi tu nous avertis, et ca fait poser plein de questions. Tu avais aussi dit au début "a classifier has been trained" ce qui est typiquement de la syntaxe ML/IA, donc c'est bizarre. %C% vu dans l'intro, à modifier.
 
 ```{r pijuanSalaClassifier, eval=TRUE}
 scmap_classifier <- readRDS(file=paste0(classifier.folder, "scmap_classifier_1000markers.rds"))
@@ -977,8 +980,7 @@ lapply(allSO.list,
 
 ### Homotypic doublet proportion estimation
 
-As mentioned earlier, DoubletFinder is only sensitive to heterotypic doublets. By obtaining the proportion of homotypic doublets, I prevent DoubletFinder from overestimating the doublets to be removed across cells.%A% je suis pas sure de comprendre, surtout que tu dis que tu fais l'estimation que pour homotypic mais la section suivante parle de l'estimation pour heterotypic
-
+As mentioned earlier, DoubletFinder is only sensitive to heterotypic doublets. By obtaining the proportion of homotypic doublets, I prevent DoubletFinder from overestimating the doublets to be removed across cells.%A% je suis pas sure de comprendre, surtout que tu dis que tu fais l'estimation que pour homotypic mais la section suivante parle de l'estimation pour heterotypic %C% je vais revoir l'introduction de cette partie.
 
 ```{r warning=FALSE, out.width="50%", fig.show='hold', message=FALSE}
 homo_prop <- sapply(allSO.list,
@@ -1003,8 +1005,8 @@ Now, I have an estimated number of homotypic doublets proportion in each of the 
 
 The percentage of doublets is dependant of the number of cells loaded to the device before sequencing, and the prevalence of cell aggregates within the cell suspension.
 
-In the Rossi et al. analysis, this rate was estimated at 7.6%. %A% which rate ? Pourqoui ici on donne la valeur a priori alors que pour les homotypic on fait un calcul sur les données?
-Here, according to the [user guide relative to our sequencing analysis](https://support.10xgenomics.com/single-cell-gene-expression/index/doc/user-guide-chromium-single-cell-3-reagent-kits-user-guide-v31-chemistry-dual-index), and given that arround 20.000 cells were loaded for each experiment, I will use the rate 8.0% on the lab data.
+In the Rossi et al. analysis, this rate was estimated at 7.6%. %A% which rate ? Pourqoui ici on donne la valeur a priori alors que pour les homotypic on fait un calcul sur les données? %C% j'introduirai le calcul de DF plus tôt, dans l'introduction de cette partie. "this rate" vient de 10X genomics. Pour le trouver, il  faut consulter le manuel de 10X
+Here, according to the [user guide relative to our sequencing analysis](https://support.10xgenomics.com/single-cell-gene-expression/index/doc/user-guide-chromium-single-cell-3-reagent-kits-user-guide-v31-chemistry-dual-index), and given that arround 20.000 cells were loaded for each experiment, I will use the rate 8.0% on the MMG lab data.
 
 So, I apply the percentage of multiplets on the number of cells in each of the sub-datasets. Then, to estimate the number of heterotypic doublets, I multiply the result by the proportion of heterotypic proportion (`1 - homotypic doublet proportion`).
 
@@ -1378,7 +1380,7 @@ Running a PCA on cell cycle markers reveals, unsurprisingly, that cells separate
 # Conclusion
 
 In this first protocol, I organized the datasets into sub-datasets relating to their origin, reference or lab, and to the day of the experiments on which they have been obtained.
-Then, I cleaned the sub-datasets by studying the mitochondrial expression in the cells, and removing the outliers. %A% pas seulement, aussi filtre par feature count
+Then, I cleaned the sub-datasets by studying the mitochondrial expression in the cells, and removing the outliers. %A% pas seulement, aussi filtre par feature count %C% yep ; ajouter que les donnees sont preprocessees aussi
 I also removed the doublets.
 And, at the end I tested whether or not it is necessary to regress the sub-datasets over the batch effect or the cell-cycle phase.
 
