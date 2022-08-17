@@ -1,5 +1,5 @@
 ---
-title: "01_Data preprocessing - Analysis datasets" %A% analysis datasets c'est pas très claire, mettre un titre plus explicite? %C% Sub-datasets preparation and preprocessing ?
+title: "01_Sub-datasets preparation and preprocessing"
 author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
