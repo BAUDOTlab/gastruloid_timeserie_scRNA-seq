@@ -737,7 +737,7 @@ SAY SOMETHING THAT ROSSI ET AL DATA WERE ALREADY PREPROCESSED %A% yep
 gc()
 ```
 
-# Seurat Standard Preprocessing Workflow
+# Seurat Standard Preprocessing Workflow {#preprocess1}
 
 To compare the gene expression across multiple cells, the data have to be normalized.
 I use the default parameters of the `NormalizeData` function.
@@ -1038,7 +1038,7 @@ Below, there is the estimated number of heterotypic doublets to remove.
   kable_styling(bootstrap_options = c("striped", "hover"))`
 
 
-## Parameters - pK identification
+## Parameters' selection
 
 DoubletFinder relies on 3 main parameters:
 
@@ -1048,7 +1048,9 @@ DoubletFinder relies on 3 main parameters:
 
 -    nExp, the number of predicted doublets, obtained from the previous step.
 
-It has been shown that the pN parameter has no influence on the tool efficiency. As I already determined the number of doublets to remove during the previous steps, I just have to determine the pK parameter for each sub-dataset.
+First, I will use the default value of the pN parameter (i.e. 0.25), as it has been shown in the DoubletFinder article that it has no influence on the tool efficiency.  
+Second, I previously determined the number of heterotypic doublets to remove for each sub-dataset (see the table above).  
+Finally, I just have to determine the value of the pK parameter, using the ground-truth-agnostic parameter selection strategy (i.e. BC~MVN~ maximization).
 
 ```{r warning=FALSE, out.width="50%", fig.show='hold', message=FALSE}
 pK.list <- sapply(allSO.list,
@@ -1069,21 +1071,20 @@ pK.list <- sapply(allSO.list,
                   })
 ```
 
+Below, there is the selected value for the pK parameter for each sub-dataset.
+
+`r data.frame(pK.list) %>%
+  setNames(c('pK parameter values')) %>%
+  knitr::kable() %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))`
+
+
+## Doublets identification - DoubletFinder running
+
+With all parameters set I can run DoubletFinder on the sub-datasets.
+
 
 ```{r warning=FALSE, out.width="50%", fig.show='hold', message=FALSE}
-## pK Identification (no ground-truth) ---------------------------------------------------------------------------------------
-
-
-
-## Load pijuansala classifier (/!\ not AI) -----------------------------------------------------------------------------------
-
-## Annotate cells from pijuansala classifier ---------------------------------------------------------------------------------
-
-
-## Homotypic Doublet Proportion Estimate -------------------------------------------------------------------------------------
-
-
-# run doubletFinder ---------------------------------------------------------------------------------------------------------- 
 allSO.list <- lapply(allSO.list,
                      function(SO){
                        SO <- doubletFinder_v3(SO, 
@@ -1092,9 +1093,15 @@ allSO.list <- lapply(allSO.list,
                                               pK = pK.list[[SO@project.name]], 
                                               nExp = dblts_nonhomo[[SO@project.name]])
                      })
+```
 
+By running DoubletFinder on the sub-datasets, a new metadata appears in the Seurat objects. The name of this new matadata is `DF.classifications`, and every cell is tagged either by `Singlet` or `Doublet`.
 
-# remove the cells tagged as doublet -----------------------------------------------------------------------------------------
+SHOW TABLE DE SO@METADATA$DF.CLASSIFICATIONS 
+
+Finally, I just have to subset the sub-datasets on the `Singlet` tagged cells.
+
+```{r warning=FALSE, out.width="50%", fig.show='hold', message=FALSE}
 allSO.list <- lapply(allSO.list,
                      function(SO){
                        # remove the cells identified as doublets of each of the sub-datasets
@@ -1108,9 +1115,11 @@ allSO.list <- lapply(allSO.list,
                        
                        return(SO)
                      })
+```
 
+Size of all the sub-datasets after doublet removal:
 
-## Check size of the subdatasets ---------------------------------------------------------------------------------------------
+```{r size_track04, results='hold', rows.print=10}
 size_suball3 <- data.frame(cbind(
     sapply(allSO.list, function(SO){
         if (str_detect(SO@project.name, "^ref")){ "ref" } else { "lab" }
@@ -1135,16 +1144,24 @@ size_suball3$day <- factor(size_suball3$day, levels = c('4', '5', '5bis', '6', '
 size_suball_track <- rbind(size_suball_track, size_suball3)
 knitr::kable(size_suball_track)
 rm(size_suball3)
+```
 
+```{r hist_counts03}
 ggplot(size_suball_track, aes(x = day, y = Nbr_of_cells)) +
     geom_col(aes(color = Analysis_step_name, fill = Analysis_step_name), position = position_dodge(), width = 0.6) +
     theme_classic() +
     theme(plot.title = element_text(hjust = 0.5)) +
     ggtitle("Number of cells in each sub-dataset\nafter doublets removal") +
     facet_grid(.~ origin)
+```
 
+INTRODUCE WHY TO REDO ALL SEURAT STANDARD PREPROCESSING WORKFLOW because of removing cells, like during QC
 
-## back to preprocessing analysis recluster cells after removing doublets ----------------------------------------------------
+# Preprocessing workflow without doublets
+
+I run again the complete Seurat standard preprocessing workflow, with the same parameters as before. See more details in the [section 7](#preprocess1).
+
+```{r warning=FALSE, out.width="50%", fig.show='hold', message=FALSE}
 res <- seq(0.8, 1.6, 0.2)
 allSO.list <- lapply(allSO.list,
                      function(SO){
@@ -1167,8 +1184,6 @@ allSO.list <- lapply(allSO.list,
                        }
                        return(SO)
                      })
-
-
 ```
 
 
