@@ -1,0 +1,1098 @@
+---
+author: "CC"
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+    html_document:
+        theme:
+            bootswatch: yeti
+        toc: yes
+        toc_float:
+          collapsed: false
+          smooth_scroll: true
+        number_sections: yes
+        df_print: kable
+        code_folding: hide
+    pdf_document:
+        number_sections: yes
+        toc: yes
+        toc_depth: 3
+        keep_tex: no
+params:
+    analysis.name:
+        value: "analysis_"
+    new.analysis:
+        value: FALSE
+    dataset:
+        value: NA
+        choices: [lab_3_days, lab_4_days]
+    do.integ:
+        value: FALSE
+    do.merge:
+        value: FALSE
+    mito.low:
+        value: 1.5
+        min: 0
+        max: 99
+    mito.high:
+        value: 10
+        min: 1
+        max: 100
+    ribo.low:
+        value: 25
+        min: 0
+        max: 99
+    ribo.high:
+        value: 45
+        min: 1
+        max: 100
+    min.feat:
+        value: 200
+    min.cells:
+        value: 3
+    min.counts:
+        value: 1500
+    max.counts:
+        value: 150000
+    norm.meth:
+        value: "LogNormalize"
+    hvg.meth:
+        value: mvp
+        choices: [vst, mvp, disp]
+    hvg.num:
+        value: FALSE
+    do.scale:
+        value: FALSE
+    pca.npcs:
+        value: 30
+    pca.print:
+        value: 10
+    top.pcs:
+        value: 15
+    dblt.rate:
+        value: 8
+    res:
+        value: 1.0
+    algo.cluster:
+        value: 4
+        choices: [1, 2, 3, 4]
+    top.markers:
+        value: 20
+    general.seed: 17
+title: "Protocole 2: `r params$dataset`\nCombined datasets analysis"
+---
+
+```{r setup1, eval=TRUE, include=FALSE}
+options(knitr.purl.inline = TRUE)
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+
+    # text output
+    echo = TRUE,
+    results = "hold",
+    warning = FALSE,
+    error = FALSE,
+    message = FALSE,
+    strip.white = TRUE,
+
+    # code decoration
+    #tidy = TRUE,
+    tidy.opts = list(width.cutoff = 90),
+    comment = '',
+    attr.output='.numberLines',
+    
+    # plots
+    #fig.path = "figure/",      # is set later, in chunk setup2
+    fig.show = "asis",         # tuned to "hold" in multiple plots chunk
+    dev = c('png', 'pdf'),
+    fig.width = 12,
+    fig.height = 12,
+    #fig.asp=1.3               # fig.height = fig.width * fig.asp
+    #out.extra = 'style="border:5px solid orange;"'     # orange box arround plots
+    fig.align = "center"       # should be tuned to default in multiple plots chunk
+)
+```
+
+```{r load-lib, include=FALSE}
+library(dplyr)
+library(Matrix)
+library(Seurat)
+library(ggplot2)
+library(reticulate)
+library(scmap)
+#library(RColorBrewer)
+library(DoubletFinder)
+library(stringr)
+library(kableExtra)
+library(formattable)
+library(knitr)
+library(SingleCellExperiment)
+library(BiocGenerics)
+library(scales)
+library(formatR)
+library(uwot)
+library(DT)
+
+options(ggrepel.max.overlaps = 5)
+```
+
+```{r get-params, include=FALSE}
+bindingIsLocked("params", env = .GlobalEnv)
+unlockBinding("params", env = .GlobalEnv)
+attach(params)
+```
+
+```{r sourceCodes}
+source("./dimplotMetadata.R")
+source("./extract_topn.R")
+source("./add_dominantMetadata.R")
+#source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/FeatureViolinplot.R")
+#source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/Violin_dotplot.R")
+```
+
+
+# Global settings {.tabset .tabset-pills .tabset-fade}
+
+## `r dataset` setting analysis
+
+```{r show-params}
+ul <- unlist(params)
+df <- data.frame(keyName=names(ul), value=ul, row.names=NULL)
+names(df) <- c('Parameters', 'Values')
+df1 <- df[1:ceiling(dim(df)[1]/3),]
+df1$Parameters <- cell_spec(df1$Parameters, bold = T)
+df2 <- df[(ceiling(dim(df)[1]/3)+1):(2*ceiling(dim(df)[1]/3)),]
+df2$Parameters <- cell_spec(df2$Parameters, bold = T)
+df3 <- df[((2*ceiling(dim(df)[1]/3))+1):dim(df)[1],]
+df3$Parameters <- cell_spec(df3$Parameters, bold = T)
+
+
+list(df1, df2, df3) %>%
+  knitr::kable(align = "ll", row.names = FALSE, escape = F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"),
+                full_width = FALSE)
+rm(df)
+```
+
+
+## Directories
+
+Set either input and output directories.
+
+```{r base-path}
+#basePath <- "/home/celine/temp2"
+#basePath <- "/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis" # local server
+basePath <- "/shared/projects/XX/XX" # IFB server
+```
+
+Root directory for the analysis : `r basePath`
+
+### Input directories
+
+Get the path of the inputs used for the analysis:
+
+- atlas.folder
+
+- inputTables.folder
+
+- otherInputs
+
+```{r input-dirs}
+inputs.folder <- file.path(basePath, "inputData")
+
+atlas.folder <- file.path(inputs.folder, "atlas")
+inputTables.folder <- file.path(inputs.folder, "InputTables")
+otherInputs <- file.path(inputs.folder, "other")
+```
+
+### Output directories
+
+Depending on the previously run analysis, selection of the `baseAnalysis` directory to output
+figures, tables and reports.
+
+```{r anteriority, eval=(analysis.name == "analysis_"), echo=(analysis.name == "analysis_")}
+last_analysis <- 0
+dirs.in.dir <- list.dirs(basePath, full.names = FALSE, recursive = FALSE)
+anterior <- grep("^analysis_[0-9]+", dirs.in.dir, value = TRUE)
+#anterior <- grep("st", dirs.in.dir, value = TRUE)
+if (length(anterior) > 0){
+    last_analysis <- max(as.numeric(str_extract_all(anterior, "\\d+", simplify = TRUE)), na.rm=T)
+} else {
+    params$new.analysis <- TRUE
+    attach(params)
+}
+```
+
+Will use the previous analysis directory
+
+```{r default_analysisName, eval=(!new.analysis && analysis.name == "analysis_"), echo=(!new.analysis && analysis.name == "analysis_")}
+analysis.name <- paste0(analysis.name, as.character(last_analysis))
+```
+
+```{r reAnalysis, eval=!new.analysis, echo=!new.analysis}
+baseAnalysis <- file.path(basePath, analysis.name)
+rdsObjects <- file.path(baseAnalysis, "rdsObjects")
+if(!dir.exists(rdsObjects)){dir.create(rdsObjects)}
+print(baseAnalysis)
+```
+
+Based on the choosen path, **create** or **reuse** the directory dedicated to the `r dataset` dataset.
+
+```{r dataset-analysisFolder}
+dataset.anFolder <- file.path(baseAnalysis, dataset)
+if(!dir.exists(dataset.anFolder)){dir.create(dataset.anFolder)}
+fig.folder <- file.path(dataset.anFolder, "figures/")
+if(!dir.exists(fig.folder)){dir.create(fig.folder)}
+```
+
+```{r setup2, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    
+    # figures
+    fig.path=fig.folder
+)
+```
+
+## Set up color vectors
+
+```{r load_colorTables}
+colors.table <- read.table(file=file.path(inputTables.folder, "ClusterColors.tsv"), sep="\t", header=T, comment.char="", as.is=T)
+colors.celltype <- setNames(colors.table$blind_friendly[!is.na(colors.table$transferred_identity)], colors.table$transferred_identity[!is.na(colors.table$transferred_identity)])
+
+colors.stage <- setNames(c("#bb573b", "#ac9d3e", "#5aaf6a", "#7564b9", "#b94c84", "#ba4b7d", "#90b03d", "#60a756", "#45c097", "#5e8bd5", "#6d71d8", "#573585", "#bd80d5", "#b853a2", "#ba4b7d"), c("Day_04", "Day_05", "Day_06", "Day_07", "Day_10", "Day_11", "E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5"))
+```
+
+```{r starter, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+# Get `r dataset` data
+
+## Load data
+
+Take data previously generated during single dataset pipeline execution.
+
+```{r multiple-load}
+data.path <- file.path(baseAnalysis, "rdsObjects")
+sep_data <- grep("^06_c", list.files(data.path, full.names = FALSE, recursive = FALSE), value = TRUE)
+sep_data <- sep_data[c(1:2,4:5)]
+sep_days <- sort(str_extract(sep_data, "lab_day_[0-9]{2}"))
+
+if (dataset == "lab_3_days") {
+    toLoad_data <- grep(paste(sep_days[1:3], collapse = "|"), sep_data, value = TRUE)
+    sep_data.list <- lapply(toLoad_data, function(x) readRDS(file = file.path(data.path, x)))
+    names(sep_data.list) <- sep_days[1:3]
+} else if (dataset == "lab_4_days") {
+    toLoad_data <- grep(paste(sep_days, collapse = "|"), sep_data, value = TRUE)
+    sep_data.list <- lapply(toLoad_data, function(x) readRDS(file = file.path(data.path, x)))
+    names(sep_data.list) <- sep_days
+}
+```
+
+```{r integrate-sep-data, eval=do.integ, echo=do.integ}
+SO <- sep_data.list[[1]]
+set.seed(general.seed)
+
+for (a_day in names(sep_data.list)[2:length(sep_data.list)]){
+  integ.list <- list(SO, sep_data.list[[a_day]])
+  features <- SelectIntegrationFeatures(integ.list)
+  anchors <- FindIntegrationAnchors(object.list = integ.list,
+                                    anchor.features = features)
+  SO <- IntegrateData(anchorset = anchors)
+}
+```
+
+```{r merge-sep-data, eval=do.merge, echo=do.merge}
+SO <- merge(x = sep_data.list[[1]], y = sep_data.list[2:length(sep_data.list)], merge.data = T)
+```
+
+```{r combine-gc, include = FALSE}
+rm(data.path, sep_data, sep_days, toLoad_data, sep_data.list)
+gc()
+```
+
+## Remove/show metadata
+
+```{r rm-metadata}
+SO$seurat_clusters <- NULL
+SO$orig.celltype <- NULL
+SO@meta.data[names(SO@meta.data) == grep("pANN", colnames(SO@meta.data), value = TRUE)] <- NULL
+
+rm_metadata <- grep("RNA_snn", colnames(SO@meta.data), value=TRUE)
+for (md in rm_metadata){
+    SO@meta.data[md] <- NULL
+}
+```
+
+```{r show-metaData}
+data.frame(head(SO@meta.data)) %>%
+  knitr::kable(align = "lrrrrrr",
+               caption = paste0("First lines of ", dataset, " metadata table")) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+## Nomenclature for cell names
+
+```{r cells_nomenclature}
+head(colnames(SO), 3)
+```
+
+Below, we can see that there are as many unique cell identifiers as the number of cells among all the sub-datasets.
+Nbr of cells among in the dataset: `r dim(SO)[2]`
+Nbr of cell identifiers: `r length(unique(colnames(SO)))`
+
+- - -
+
+\clearpage
+
+```{r initial-size, echo=FALSE}
+size_track1 <- data.frame(cbind(
+    t(dim(SO)),
+    "Preliminary Counts",
+    "01"
+))
+
+colnames(size_track1) <- c('Nbr_of_features', 'Nbr_of_cells', 'Analysis_step_name', 'Step_number')
+```
+
+```{r save1}
+saveRDS(SO, file=file.path(rdsObjects, paste0("01_", DefaultAssay(SO), "_", dataset, ".rds")))
+```
+
+```{r garbage-collec2, include=FALSE}
+gc()
+```
+
+```{r setup5, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart1}
+SO <- readRDS(file.path(rdsObjects, paste0("01_integrated_", dataset, ".rds")))
+```
+
+```{r setup6, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+# Preprocessing workflow
+
+```{r hvg-vst2, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
+SO <- FindVariableFeatures(SO, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
+```
+
+```{r hvg-mvp2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
+SO <- FindVariableFeatures(SO, selection.method = hvg.meth, verbose=FALSE)
+head(SO@assays[[DefaultAssay(SO)]]@meta.features) %>%
+  knitr::kable(caption = "Example of HVG selection output") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+ 
+```{r show-HVGnum2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
+t(as.data.frame(table(SO@assays[[DefaultAssay(SO)]]@meta.features$mvp.variable))) %>%
+  knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
+               row.names = FALSE,
+               escape = F,
+               align = "cc") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+ 
+ 
+```{r save3-varFeat-dataset}
+var.feats.dataset <- VariableFeatures(SO)
+saveRDS(var.feats.dataset, file=file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
+```
+
+```{r scale2, eval=do.scale, echo=do.scale}
+SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
+```
+
+```{r copy-dataSlot2, eval=!do.scale, echo=!do.scale}
+SO <- SetAssayData(SO, assay = DefaultAssay(SO), slot = "scale.data", new.data = as.matrix(SO@assays[[DefaultAssay(SO)]]@data))
+```
+
+```{r runPCA2}
+SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
+```
+
+```{r plot-elbow2}
+ElbowPlot(SO, ndims = pca.npcs) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20)) +
+  geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
+  ggtitle(paste0(SO@project.name, "\nElbowPlot")) 
+```
+
+```{r clustering2}
+resolutions <- seq(0.6, 1.6, 0.1)
+SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
+SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
+```
+
+```{r runUMAP2}
+SO <- RunUMAP(SO, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
+```
+
+```{r plot-clusters-2}
+for (ares in resolutions){
+    clusterResName <- grep(paste0(DefaultAssay(SO), "_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
+    dimplotMetadata(SO, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares)) 
+    
+    Sys.sleep(0.5)
+}
+```
+
+```{r save4}
+saveRDS(SO, file=file.path(rdsObjects, paste0("02_preprocessing_", DefaultAssay(SO), "_", dataset, ".rds")))
+```
+
+```{r setup7, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart3integ, eval=do.integ, echo=do.integ}
+SO <- readRDS(file.path(rdsObjects, paste0("02_preprocessing_integrated_", dataset, ".rds")))
+```
+
+```{r restart3merge, eval=do.merge, echo=do.merge}
+SO <- readRDS(file.path(rdsObjects, paste0("02_preprocessing_RNA_", dataset, ".rds")))
+```
+
+```{r setup8, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+```{r garbage-collec3, include=FALSE}
+gc()
+```
+
+- - -
+
+\clearpage
+
+# Learning transfert from an Atlas
+
+## Atlas preparation
+
+```{r atlasLoading}
+atlas.metadata <- read.table(file.path(atlas.folder, "meta.tab") , sep="\t" , header=TRUE )
+atlas.genes <- read.csv(file.path(atlas.folder, "genes.tsv"), sep="\t", header = FALSE, as.is = TRUE)
+atlas.data <- readMM(file.path(atlas.folder, "raw_counts.mtx"))
+atlas.data@Dimnames[[2]] <- atlas.metadata$cell
+atlas.data@Dimnames[[1]] <- atlas.genes$V2
+```
+
+```{r garbage-collec4, include=FALSE}
+rm(atlas.genes)
+gc()
+```
+
+```{r atlasStandardProcess}
+atlas <- CreateSeuratObject(counts = atlas.data, project = "Atlas", min.cells=min.cells, min.features = min.feat)
+rm(atlas.data)
+gc()
+
+nonFiltered <- intersect(colnames(atlas), atlas.metadata$cell)
+atlas.metadata <- atlas.metadata[which(atlas.metadata$cell %in% nonFiltered),]
+
+atlas <- NormalizeData(atlas, normalization.method = norm.meth, verbose=FALSE)
+atlas <- AddMetaData(object = atlas, metadata = atlas.metadata$stage, col.name = "day")
+atlas <- AddMetaData(object = atlas, metadata = atlas.metadata$celltype, col.name = "celltype")
+atlas <- AddMetaData(object = atlas, metadata = atlas.metadata$sequencing.batch, col.name = "replicate")
+#atlas <- AddMetaData(object = atlas, metadata = atlas.metadata$sequencing.batch+10, col.name = "Replicate")
+atlas <- AddMetaData(object = atlas, metadata = paste(atlas$day, "_batch_0", atlas$replicate, sep=""), col.name = "dataset")
+atlas$model <- "Embryo"
+atlas[["percent.mt"]] <- PercentageFeatureSet(atlas, pattern="^mt-")
+atlas[["percent.ribo"]] <- PercentageFeatureSet(atlas, pattern="^Rp[sl]")
+```
+
+```{r garbage-collec5, include=FALSE}
+rm(atlas.metadata)
+gc()
+```
+
+```{r atlas_subsetting}
+Idents(atlas) <- atlas$day
+atlas.subset <- subset(x = atlas, idents = c("mixed_gastrulation"), invert=T)
+
+Idents(atlas.subset) <- atlas.subset$celltype
+atlas.subset <- subset(x = atlas.subset, cells = colnames(atlas.subset)[is.na(Idents(atlas.subset))], invert = T)
+atlas.subset <- subset(atlas.subset, idents=unique(grep("ExE", atlas.subset$celltype, value = T)), invert=T)
+atlas.subset <- subset(atlas.subset, idents="Parietal endoderm", invert=T)
+```
+
+```{r garbage-collec6, include=FALSE}
+rm(atlas)
+gc()
+```
+
+## Integrate analyzed data with the Atlas {.tabset .tabset-pills .tabset-fade}
+
+```{r hvg-vst-atlas, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
+atlas.subset <- FindVariableFeatures(atlas.subset, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
+saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
+```
+
+```{r hvg-mvp-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp", results='asis'}
+atlas.subset <- FindVariableFeatures(atlas.subset, selection.method = hvg.meth, verbose=FALSE)
+saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
+```
+
+```{r show-HVGnum-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
+t(as.data.frame(table(atlas.subset@assays[[DefaultAssay(atlas.subset)]]@meta.features$mvp.variable))) %>%
+  knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
+               row.names = FALSE,
+               escape = F,
+               align = "cc") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+```{r integration-with-atlas}
+features <- SelectIntegrationFeatures(object.list = list(SO, atlas.subset))
+anchors <- FindIntegrationAnchors(object.list = list(SO, atlas.subset), anchor.features = features)
+SO.align <- IntegrateData(anchorset = anchors)
+
+SO.align@project.name <- paste0(dataset, "_with_atlas")
+DefaultAssay(SO.align) <- "integrated"
+```
+
+```{r scale-aligned, eval=do.scale, echo=do.scale}
+# Run the standard workflow for visualization and clustering
+SO.align <- ScaleData(SO.align, assay = DefaultAssay(SO.align), verbose = FALSE)
+```
+
+```{r copy-dataSlot-aligned, eval=!do.scale, echo=!do.scale}
+SO.align <- SetAssayData(SO.align, assay = DefaultAssay(SO.align), slot = "scale.data", new.data = as.matrix(SO.align@assays[[DefaultAssay(SO.align)]]@data))
+```
+
+```{r dimReduction-aligned}
+SO.align <- RunPCA(SO.align, npcs = pca.npcs, verbose = FALSE)
+ElbowPlot(SO.align, ndims = pca.npcs)
+```
+
+```{r show-alignedUMAP}
+SO.align <- RunUMAP(SO.align, reduction = "pca", dims = 1:10)
+dimplotMetadata(SO.align, metadata = "model", title = "Gastruloid and atlas cells\nin a shared UMAP embedding")
+```
+
+### Cell identity transfert
+
+#### Create a centroid table on Atlas cell types in pca space
+
+```{r classifierCreation}
+Idents(SO.align) <- SO.align$model
+cells.tmp <- WhichCells(SO.align, idents = "Embryo")
+tmp <- SO.align@reductions$pca@cell.embeddings[cells.tmp, 1:top.pcs]
+idents.tmp <- SO.align$celltype[cells.tmp]
+centroids <- data.frame(row.names = unique(idents.tmp))
+for(i in rownames(centroids)){
+  for(j in colnames(tmp)){
+    centroids[i,j] <- mean(tmp[idents.tmp==i,j])
+  }
+}
+```
+
+#### Apply that knowledge using scmap concept to analyzed data
+
+```{r classifierApplication}
+Idents(SO.align) <- SO.align$model
+cells.tmp <- WhichCells(SO.align,idents = "Gastruloids")
+tmp <- SO.align@reductions$pca@cell.embeddings[cells.tmp, 1:top.pcs]
+idents.tmp <- SO.align$celltype[cells.tmp]
+idents.tmp[] <- ""
+dist <- list()
+for(i in names(idents.tmp)){
+  for(j in rownames(centroids)){
+    dist[[j]] <- cor(x = as.numeric(tmp[i,]),y = as.numeric(centroids[j,]),method = "pearson")
+  }
+  idents.tmp[i] <- names(which.max(dist))
+}
+
+SO.align$orig.celltype <- SO.align$celltype
+SO.align$aligned.celltype <- SO.align$celltype
+SO.align$aligned.celltype[cells.tmp] <- idents.tmp
+SO.align$celltype <- SO.align$aligned.celltype
+SO.align$aligned.celltype <- NULL
+
+Idents(SO.align) <- SO.align$celltype
+```
+
+```{r save5}
+saveRDS(SO.align, file=file.path(rdsObjects, paste0("04_celltypeFromAtlas_", SO.align@project.name, ".rds")))
+```
+
+```{r garbage-collec7, include=FALSE}
+rm(centroids, cells.tmp, tmp, idents.tmp, dist)
+gc()
+```
+
+```{r show-celltypeSOalign}
+dimplotMetadata(SO.align, metadata = "celltype", title = "Celltypes on the combined object\nGastruloids and atlas cells")
+```
+
+```{r setup9, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart4}
+SO.align <- readRDS(file.path(rdsObjects, paste0("04_celltypeFromAtlas_", dataset,"_with_atlas.rds")))
+atlas.subset <- readRDS(file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
+var.feats.dataset <- readRDS(file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
+```
+
+```{r setup10, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+
+### Global orientation of the UMAP plots {.bs-callout .bs-callout-orange}
+
+#### Atlas data preprocessing steps (ScaleData, RunPCA)
+
+```{r scale-atlas, eval=do.scale, echo=do.scale}
+# Run the standard workflow for visualization and clustering
+atlas.subset <- atlas.subset(SO.align, assay = DefaultAssay(atlas.subset), verbose = FALSE)
+```
+
+```{r copy-dataSlot-atlas, eval=!do.scale, echo=!do.scale}
+atlas.subset <- SetAssayData(atlas.subset, assay = DefaultAssay(atlas.subset), slot = "scale.data", new.data = as.matrix(atlas.subset@assays[[DefaultAssay(atlas.subset)]]@data))
+```
+
+```{r runPCA-atlas}
+atlas.subset <- RunPCA(atlas.subset, reduction.name = "PCAown", reduction.key = "PCown_", verbose = FALSE)
+ElbowPlot(atlas.subset, ndims = pca.npcs, reduction = "PCAown")
+```
+
+```{r garbage-collec8, include=FALSE}
+gc()
+```
+
+#### Get UMAP of a subset of the Atlas data
+
+```{r atlas_refLayout}
+spread <- 2
+min_dist <- 1
+Idents(atlas.subset) <- 'celltype'
+
+# Downsample the number of cells per identity class
+set.seed(general.seed)
+cells.use <- WhichCells(object = atlas.subset, downsample = 200) #colnames(atlas.subset) #sample(colnames(atlas.subset),1000)
+nn=300
+local_connectivity=1 # Tried 2 and was not so convincing. Should not be more than the local intrinsic dimension of the manifold.
+fast_sgd <- F # Should set it to FALSE ultimately, to get exactly reproducible results, but TRUE can be useful as it is faster for early exploration.
+umap_init <- "spectral" # "normlaplacian", "spectral" (with noise),  "random", "lvrandom" (Gaussian std 1e-4), "laplacian", or a matrix of initial coordinates.
+reduction.use <- "PCAown"
+
+set.seed(general.seed)
+tmp <- umap(X = Embeddings(atlas.subset[[reduction.use]])[cells.use, 1:10],
+            init = umap_init,
+            n_neighbors = nn,
+            n_components = 3,
+            metric = "cosine",
+            min_dist = min_dist,
+            spread = spread,
+            init_sdev = 1e-4,
+            local_connectivity = local_connectivity,
+            ret_model=T,
+            verbose = F)
+tmp2 <- 0*Embeddings(atlas.subset[[reduction.use]])[,1:3]
+tmp2[cells.use,] <- tmp$embedding
+atlas.subset[["umap200"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP200_")
+```
+
+UMAP dimension reduction on atlas, with 200 cells per celltype, 300 neighbors
+
+```{r plot-atlasUMAP-200}
+dimplotMetadata(atlas.subset, "celltype",
+                title = paste0(dataset, " : atlas celltypes\nvisualization reduced to 200 cells per celltype"),
+                reduction = "umap200")
+```
+
+```{r save-atlasUMAP-200}
+saveRDS(atlas.subset, file=file.path(rdsObjects, paste0("05_UMAP_atlas_subset200cells_", dataset, ".rds")))
+```
+
+#### Create a centroid table on Atlas cell types in UMAP200 space
+
+```{r atlas_cluster_avg.pos}
+Idents(atlas.subset) <- atlas.subset$celltype
+x_ref <- data.frame(row.names = unique(atlas.subset$celltype))
+for(i in unique(atlas.subset$celltype)){
+  x_ref[i,1] <- mean(atlas.subset[["umap200"]]@cell.embeddings[intersect(cells.use,names(atlas.subset$celltype[atlas.subset$celltype==i])),1])
+  x_ref[i,2] <- mean(atlas.subset[["umap200"]]@cell.embeddings[intersect(cells.use,names(atlas.subset$celltype[atlas.subset$celltype==i])),2])
+  x_ref[i,3] <- mean(atlas.subset[["umap200"]]@cell.embeddings[intersect(cells.use,names(atlas.subset$celltype[atlas.subset$celltype==i])),3])
+}
+```
+
+#### Create random initial coordinates for the integrated object of Atlas and analyzed data
+
+```{r UMAPinit_sharedLayout}
+min_dist <- 8
+spread <- 25
+nn <- 300
+
+# Generate a random position around the layout defined positions for all cells according to their cell types:
+noise <- 5
+set.seed(general.seed)
+x_ini <- data.frame(row.names = colnames(SO.align))
+x_ini[,1] <- runif(length(colnames(SO.align)))*noise
+x_ini[,2] <- runif(length(colnames(SO.align)))*noise
+x_ini[,3] <- runif(length(colnames(SO.align)))*noise
+Idents(SO.align) <- SO.align$celltype
+for(i in unique(SO.align$celltype)){
+  if(i %in% rownames(x_ref)){
+    x_ini[WhichCells(SO.align,idents=i),1] <- x_ini[WhichCells(SO.align,idents=i),1]+x_ref[i,1]
+    x_ini[WhichCells(SO.align,idents=i),2] <- x_ini[WhichCells(SO.align,idents=i),2]+x_ref[i,2]
+    x_ini[WhichCells(SO.align,idents=i),3] <- x_ini[WhichCells(SO.align,idents=i),3]+x_ref[i,3]
+  }
+}
+```
+
+```{r garbage-collec9, include=FALSE}
+gc()
+```
+
+#### Compute UMAP dimension reduction on the integrated object, nested by the random initial coordinates
+
+```{r apply_UMAPshared}
+cells.use <- colnames(SO.align) #WhichCells(object = tmp,downsample = 300) #colnames(SO) #sample(colnames(SO),1000)
+
+local_connectivity=1 # Should not be more than the local intrinsic dimension of the manifold. I would have imagined 2-3 could be reasonable, but doesn't give good results. 
+fast_sgd <- T # Should set it to false ultimately, to get exactly reproducible results, but can use T to get faster for early exploration. 
+umap_init <- as.matrix(x_ini[cells.use,]) # "normlaplacian", "spectral" (with noise),  "random", "lvrandom" (Gaussian std 1e-4), "laplacian", or a matrix of initial coordinates. 
+
+set.seed(general.seed)
+reduction.use <- "pca"
+tmp <- umap(X = Embeddings(SO.align[[reduction.use]])[cells.use, 1:10],
+            init = umap_init,
+            n_neighbors = nn,
+            n_components = 3,
+            metric = "cosine",
+            min_dist = min_dist,
+            spread = spread,
+            init_sdev = 1e-4,
+            local_connectivity = local_connectivity,
+            ret_model=T, 
+            verbose = F)
+tmp2 <- 0*Embeddings(SO.align[[reduction.use]])[,1:3]
+tmp2[cells.use,] <- tmp$embedding
+SO.align[["umapShared3d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAPshared3d_", assay = DefaultAssay(SO.align))
+
+
+umap_init <- as.matrix(x_ini[cells.use, 1:2]) # "normlaplacian", "spectral" (with noise),  "random", "lvrandom" (Gaussian std 1e-4), "laplacian", or a matrix of initial coordinates. 
+
+set.seed(general.seed)
+reduction.use <- "pca"
+tmp <- umap(X = Embeddings(SO.align[[reduction.use]])[cells.use, 1:10],
+            init = umap_init,
+            n_neighbors = nn,
+            n_components = 2,
+            metric = "cosine",
+            min_dist = min_dist,
+            spread = spread,
+            init_sdev = 1e-4,
+            local_connectivity = local_connectivity,
+            ret_model=T, 
+            verbose = F)
+tmp2 <- 0*Embeddings(SO.align[[reduction.use]])[,1:2]
+tmp2[cells.use,] <- tmp$embedding
+SO.align[["umapShared2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAPshared2d_", assay = DefaultAssay(SO.align))
+```
+
+```{r save6}
+saveRDS(SO.align, file=file.path(rdsObjects, paste0("05_UMAP_shared_", SO.align@project.name, ".rds")))
+```
+
+```{r garbage-collec10, include=FALSE}
+rm(tmp, tmp2, cells.use, x_ref, x_ini)
+gc()
+```
+
+```{r setup11, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart5}
+SO.align <- readRDS(file.path(rdsObjects, paste0("05_UMAP_shared_", dataset, "_with_atlas.rds")))
+var.feats.dataset <- readRDS(file=file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
+```
+
+```{r setup12, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+# `r dataset` data analysis after label transfert and initialized UMAP coordinates
+
+```{r extract-dataset}
+cells.use <- colnames(SO.align)[SO.align$model=="Gastruloids"]
+SO <- SO.align[,cells.use]
+SO@project.name <- dataset
+```
+
+```{r set-DefaultAssay, eval=do.merge, echo=do.merge}
+DefaultAssay(SO) <- "RNA"
+```
+
+## Analyzed data preprocessing
+
+```{r set-HVG}
+VariableFeatures(SO) <- var.feats.dataset
+```
+
+```{r scale3, eval=do.scale, echo=do.scale}
+SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
+```
+
+```{r copy-dataSlot3, eval=!do.scale, echo=!do.scale}
+SO <- SetAssayData(SO, assay = DefaultAssay(SO), slot = "scale.data", new.data = as.matrix(SO@assays[[DefaultAssay(SO)]]@data))
+```
+
+```{r runPCA3}
+SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
+```
+
+```{r plot-elbow3}
+ElbowPlot(SO, ndims = pca.npcs) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20)) +
+  geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
+  ggtitle(paste0(SO@project.name, "\nElbowPlot")) 
+```
+
+## Run UMAP algorithm, nested on atlas coordinates
+
+```{r UMAP-dataset}
+# Create 3-dimensional UMAP coordinates
+SO[["umapShared3d"]] <- CreateDimReducObject(embeddings = Embeddings(SO.align$umapShared3d)[cells.use,], key = "UMAPshared3d_", assay = DefaultAssay(SO))
+
+init_sdev <- 1e-4
+noise_level <- 0
+min_dist <- 6
+spread <- 15
+nn <- 300
+
+umap_init <- as.matrix(Embeddings(SO[["umapShared3d"]]))
+set.seed(general.seed)
+umap_init <- umap_init + cbind(rnorm(nrow(umap_init),sd = noise_level),
+                               rnorm(nrow(umap_init),sd = noise_level),
+                               rnorm(nrow(umap_init),sd = noise_level))
+set.seed(general.seed)
+reduction.use <- "pca" # pca1 or harmony
+tmp <- umap(X = Embeddings(SO[[reduction.use]])[colnames(SO), 1:top.pcs],
+            init = umap_init,
+            n_neighbors = nn,
+            n_components = 3,
+            metric = "cosine",
+            min_dist = min_dist,
+            spread = spread,
+            local_connectivity=1,
+            ret_model=T,
+            verbose = F,
+            n_epochs = 1000,
+            learning_rate = 1,
+            init_sdev = init_sdev)
+
+tmp2 <- 0*Embeddings(SO[["pca"]])[,1:3]
+tmp2[colnames(SO),] <- tmp$embedding
+SO[["umap3d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP3d_", assay = DefaultAssay(SO))
+
+# Create 2-dimensional UMAP coordinates
+SO[["umapShared2d"]] <- CreateDimReducObject(embeddings = Embeddings(SO.align$umapShared2d)[cells.use,], key = "UMAPshared2d_", assay = DefaultAssay(SO))
+
+umap_init <- as.matrix(Embeddings(SO[["umapShared2d"]]))
+set.seed(general.seed)
+umap_init <- umap_init + cbind(rnorm(nrow(umap_init),sd = noise_level),
+                               rnorm(nrow(umap_init),sd = noise_level))
+set.seed(general.seed)
+reduction.use <- "pca" # pca1 or harmony
+tmp <- umap(X = Embeddings(SO[[reduction.use]])[colnames(SO), 1:top.pcs],
+            init = umap_init,
+            n_neighbors = nn,
+            n_components = 2,
+            metric = "cosine",
+            min_dist = min_dist,
+            spread = spread,
+            local_connectivity=1,
+            ret_model=T,
+            verbose = F,
+            n_epochs = 1000,
+            learning_rate = 1,
+            init_sdev = init_sdev)
+
+tmp2 <- 0*Embeddings(SO[["pca"]])[,1:2]
+tmp2[colnames(SO),] <- tmp$embedding
+SO[["umap2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP2d_", assay = DefaultAssay(SO))
+```
+
+```{r save7}
+saveRDS(SO, file=file.path(rdsObjects, paste0("06_umap_2d3d_", SO@project.name, ".rds")))
+```
+
+```{r garbage-collec11, include=FALSE}
+rm(umap_init, tmp, tmp2)
+gc()
+```
+
+```{r show-umap2d}
+dimplotMetadata(SO, "day",
+				title = paste0("Gastruloid cells in UMAP embbeding\nnested on atlas UMAP coordinates"),
+                reduction = "umap2d")
+dimplotMetadata(SO, "celltype",
+                title = paste0("Gastruloid cells in UMAP embbeding\nnested on atlas UMAP coordinates"),
+                reduction = "umap2d")
+```
+
+```{r setup13, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart6}
+SO <- readRDS(file.path(rdsObjects, paste0("06_umap_2d3d_", SO@project.name, ".rds")))
+```
+
+```{r setup14, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+## Clustering (FindNeighbors, FindClusters)
+
+```{r clustering3}
+resolutions <- seq(0.6, 1.6, 0.1)
+SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
+SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
+```
+
+```{r save8}
+saveRDS(SO, file=file.path(rdsObjects, paste0("06_clusters_", SO@project.name, ".rds")))
+```
+
+```{r garbage-collec12, include=FALSE}
+gc()
+```
+
+```{r show-clustering}
+#selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
+#Idents(SO) <- SO@meta.data[[selectedRes]]
+#dimplotMetadata(SO, selectedRes,
+#                reduction = "umap2d")
+for (ares in resolutions){
+    clusterResName <- grep(paste0(DefaultAssay(SO), "_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
+    dimplotMetadata(SO, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares),
+    				reduction = "umap2d") 
+    
+    Sys.sleep(0.5)
+}
+```
+
+```{r setup15, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart7}
+SO <- readRDS(file.path(rdsObjects, paste0("06_clusters_", dataset, ".rds")))
+```
+
+```{r setup16, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+## Differential expression analysis
+
+```{r selected-resolution}
+#SO$seurat_clusters <- NULL
+selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
+SO$clusters <- SO[[selectedRes]]
+Idents(SO) <- SO$clusters
+```
+
+```{r findAllMarkers}
+DefaultAssay(SO) <- 'RNA'
+
+markers <- FindAllMarkers(SO)
+#markers.sign <- markers[markers$p_val_adj < 0.001 & markers$avg_logFC > log(1.5), ]
+markers.sign <- markers[order(-markers$avg_log2FC), ]
+markers.sign <- markers.sign[order(markers.sign$cluster), ]
+markers.sign <- markers.sign[ , c(6, 7, 2:4, 1, 5)]
+write.table(x = markers.sign, file = file.path(dataset.anFolder,
+						paste0("markers_min.pct_logFC_default_", 
+                                            dataset, ".integ.res_", selectedRes, ".csv")), sep = ",", row.names = F, col.names = T)
+```
+
+```{r topNmarkers}
+topNmarkers <- extract_topn(markers.sign, topn = top.markers)
+
+domCelltypes <- add_dominantMetadata(SO, metadata = "celltype")
+topNmarkers <- left_join(topNmarkers, domCelltypes, by='cluster')
+```
+
+```{r addDay_dominantMetadata, eval=(do.integ || do.merge), echo=(do.integ || do.merge)}
+domDays <- add_dominantMetadata(SO, metadata = "day")
+topNmarkers <- left_join(topNmarkers, domDays, by='cluster')
+```
+
+```{r saveTopNmarkers}
+write.table(x = topNmarkers, file = file.path(dataset.anFolder, paste0("top", top.markers, "markers.csv")), sep = ",", row.names = F, col.names = T)
+```
+
+```{r displayTable}
+datatable(topNmarkers, rownames = FALSE, filter = "top", options = list(pageLength = 5, scrollX=T))
+```
+
+
+
+
