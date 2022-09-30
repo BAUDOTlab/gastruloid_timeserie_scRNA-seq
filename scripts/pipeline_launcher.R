@@ -247,7 +247,7 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
         if (length(grep(opt$analysis_name, list.dirs(basePath, full.names = FALSE, recursive = FALSE), value = TRUE)) == 1){
             # YES
             
-            combination <- if (opt$do_integ) "integrated" else "merged"
+            combination <- if (opt$do_integ) "integration" else "merge"
             rmarkdown::render("combined_data_pipeline.Rmd", params = param.list, output_file = paste0("combinedData_", opt$analysis_name, "_", combination, "_", opt$input_dataset, ".html"))
         } else {
             # NO
@@ -280,7 +280,12 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
             (!opt$new_analysis && length(grep(opt$analysis_name, list.dirs(basePath, full.names = FALSE, recursive = FALSE), value = TRUE)) == 1)){
             # YES and NO, NO and YES
             
-            rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$input_dataset, ".html"))
+            # select pipeline to run according the analysis_name
+            if (opt$analysis_name == "removedDoublets"){
+                rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
+            } else if (opt$analysis_name == "withoutDoublet_subset"){
+                rmarkdown::render("no_df_subset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
+            }
         } else {
             # incompatible options like:
             # new analysis with a pre-existing analysis name OR
@@ -299,7 +304,7 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
         
         # run the analysis, and manage automatically the output directory whether
         # it is a new analysis or not, based on a default name "analysis_X"
-        rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$input_dataset, ".html"))
+        rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
     }
 }
 

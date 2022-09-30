@@ -18,6 +18,8 @@ output:
         toc_depth: 3
         keep_tex: no
 params:
+    analysis.name:
+        value: "analysis_"
     new.analysis:
         value: FALSE
     dataset:
@@ -141,15 +143,15 @@ attach(params)
 ```
 
 ```{r sourceCodes}
-source("./dimplotMetadata.R")
-source("./extract_topn.R")
-source("./add_dominantMetadata.R")
+source("./utilities/dimplotMetadata.R")
+source("./utilities/extract_topn.R")
+source("./utilities/add_dominantMetadata.R")
 #source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/FeatureViolinplot.R")
 #source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/Violin_dotplot.R")
 ```
 
 
-# Global settings {.tabset .tabset-pills .tabset-fade} {.bs-callout .bs-callout-orange}
+# Global settings {.tabset .tabset-pills .tabset-fade}
 
 ## `r dataset` setting analysis
 
@@ -214,24 +216,30 @@ otherInputs <- file.path(inputs.folder, "other")
 Depending on the previously run analysis, selection of the `baseAnalysis` directory to output
 figures, tables and reports.
 
-```{r anteriority}
+```{r anteriority, eval=!new.analysis, echo=!new.analysis}
 last_analysis <- 0
 dirs.in.dir <- list.dirs(basePath, full.names = FALSE, recursive = FALSE)
-anterior <- grep("^analysis_[0-9]+", dirs.in.dir, value = TRUE)
-#anterior <- grep("st", dirs.in.dir, value = TRUE)
-if (length(anterior) > 0){
+anterior <- analysis.name %in% dirs.in.dir
+if (anterior){
     last_analysis <- max(as.numeric(str_extract_all(anterior, "\\d+", simplify = TRUE)), na.rm=T)
 } else {
     params$new.analysis <- TRUE
-    print(params$new.analysis)
+    attach(params)
 }
+```
+
+```{r default_analysisName_old, eval=(!new.analysis && analysis.name == "analysis_"), echo=(!new.analysis && analysis.name == "analysis_")}
+analysis.name <- paste0(analysis.name, as.character(last_analysis))
+```
+
+```{r default_analysisName_new, eval=(new.analysis && analysis.name == "analysis_"), echo=(new.analysis && analysis.name == "analysis_")}
+analysis.name <- paste0(analysis.name, as.character(last_analysis + 1))
 ```
 
 `r if(new.analysis){"Creation of a new directory"}`
 
-```{r newAnalysis, eval=params$new.analysis, echo=params$new.analysis}
-analysis_nb <- paste0("analysis_", as.character(last_analysis+1))
-baseAnalysis <- file.path(basePath, analysis_nb)
+```{r newAnalysis, eval=new.analysis, echo=new.analysis}
+baseAnalysis <- file.path(basePath, analysis.name)
 if(!dir.exists(baseAnalysis)){dir.create(baseAnalysis)}
 rdsObjects <- file.path(baseAnalysis, "rdsObjects")
 if(!dir.exists(rdsObjects)){dir.create(rdsObjects)}
@@ -240,9 +248,8 @@ print(baseAnalysis)
 
 `r if(!new.analysis){"Use the previous analysis directory"}`
 
-```{r reAnalysis, eval=!params$new.analysis, echo=!params$new.analysis}
-analysis_nb <- paste0("analysis_", as.character(last_analysis))
-baseAnalysis <- file.path(basePath, analysis_nb)
+```{r reAnalysis, eval=!new.analysis, echo=!new.analysis}
+baseAnalysis <- file.path(basePath, analysis.name)
 rdsObjects <- file.path(baseAnalysis, "rdsObjects")
 if(!dir.exists(rdsObjects)){dir.create(rdsObjects)}
 print(baseAnalysis)
@@ -310,7 +317,8 @@ SO$model <- "Gastruloids"
 data.frame(head(SO@meta.data)) %>%
   knitr::kable(align = "lrrrrrr",
                caption = paste0("First lines of ", dataset, " metadata table")) %>% 
-  kable_styling(bootstrap_options = c("striped", "hover"))
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%", height = "300px")
 ```
 
 ## Nomenclature for cell names
@@ -974,7 +982,7 @@ SO.align <- RunUMAP(SO.align, reduction = "pca", dims = 1:10)
 dimplotMetadata(SO.align, metadata = "model", title = "Gastruloid and atlas cells\nin a shared UMAP embedding")
 ```
 
-### Cell identity transfert {.bs-callout .bs-callout-orange}
+### Cell identity transfert
 
 #### Create a centroid table on Atlas cell types in pca space
 
@@ -1052,7 +1060,7 @@ knitr::opts_chunk$set(
 ```
 
 
-### Global orientation of the UMAP plots {.bs-callout .bs-callout-orange}
+### Global orientation of the UMAP plots
 
 #### Atlas data preprocessing steps (ScaleData, RunPCA)
 

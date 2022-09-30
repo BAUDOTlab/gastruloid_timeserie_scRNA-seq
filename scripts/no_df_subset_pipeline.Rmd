@@ -24,7 +24,7 @@ params:
         value: FALSE
     dataset:
         value: NA
-        choices: [lab_3_days, lab_4_days]
+        choices: [lab_day_04, lab_day_05, lab_day_05bis, lab_day_06, lab_day_11]
     do.integ:
         value: FALSE
     do.merge:
@@ -78,7 +78,7 @@ params:
     top.markers:
         value: 20
     general.seed: 17
-title: "Protocole 2: `r params$dataset`\nCombined datasets analysis"
+title: "Protocole 1: `r params$dataset`"
 ---
 
 ```{r setup1, eval=TRUE, include=FALSE}
@@ -133,7 +133,7 @@ library(formatR)
 library(uwot)
 library(DT)
 
-options(ggrepel.max.overlaps = 5)
+options(ggrepel.max.overlaps = Inf)
 ```
 
 ```{r get-params, include=FALSE}
@@ -182,7 +182,7 @@ Set either input and output directories.
 ```{r base-path}
 #basePath <- "/home/celine/temp2"
 #basePath <- "/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis" # local server
-basePath <- "/shared/projects/XX/XX" # IFB server
+basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
 ```
 
 Root directory for the analysis : `r basePath`
@@ -191,7 +191,11 @@ Root directory for the analysis : `r basePath`
 
 Get the path of the inputs used for the analysis:
 
+- mmgLab.data
+
 - atlas.folder
+
+- classifier.folder
 
 - inputTables.folder
 
@@ -200,7 +204,9 @@ Get the path of the inputs used for the analysis:
 ```{r input-dirs}
 inputs.folder <- file.path(basePath, "inputData")
 
+mmgLab.data <- file.path(inputs.folder, "lab_data")
 atlas.folder <- file.path(inputs.folder, "atlas")
+classifier.folder <- file.path(inputs.folder, "scmap_pijuansala_classifier")
 inputTables.folder <- file.path(inputs.folder, "InputTables")
 otherInputs <- file.path(inputs.folder, "other")
 ```
@@ -210,12 +216,11 @@ otherInputs <- file.path(inputs.folder, "other")
 Depending on the previously run analysis, selection of the `baseAnalysis` directory to output
 figures, tables and reports.
 
-```{r anteriority, eval=(analysis.name == "analysis_"), echo=(analysis.name == "analysis_")}
+```{r anteriority, eval=!new.analysis, echo=!new.analysis}
 last_analysis <- 0
 dirs.in.dir <- list.dirs(basePath, full.names = FALSE, recursive = FALSE)
-anterior <- grep("^analysis_[0-9]+", dirs.in.dir, value = TRUE)
-#anterior <- grep("st", dirs.in.dir, value = TRUE)
-if (length(anterior) > 0){
+anterior <- analysis.name %in% dirs.in.dir
+if (anterior){
     last_analysis <- max(as.numeric(str_extract_all(anterior, "\\d+", simplify = TRUE)), na.rm=T)
 } else {
     params$new.analysis <- TRUE
@@ -223,11 +228,25 @@ if (length(anterior) > 0){
 }
 ```
 
-Will use the previous analysis directory
-
-```{r default_analysisName, eval=(!new.analysis && analysis.name == "analysis_"), echo=(!new.analysis && analysis.name == "analysis_")}
+```{r default_analysisName_old, eval=(!new.analysis && analysis.name == "analysis_"), echo=(!new.analysis && analysis.name == "analysis_")}
 analysis.name <- paste0(analysis.name, as.character(last_analysis))
 ```
+
+```{r default_analysisName_new, eval=(new.analysis && analysis.name == "analysis_"), echo=(new.analysis && analysis.name == "analysis_")}
+analysis.name <- paste0(analysis.name, as.character(last_analysis + 1))
+```
+
+`r if(new.analysis){"Creation of a new directory"}`
+
+```{r newAnalysis, eval=new.analysis, echo=new.analysis}
+baseAnalysis <- file.path(basePath, analysis.name)
+if(!dir.exists(baseAnalysis)){dir.create(baseAnalysis)}
+rdsObjects <- file.path(baseAnalysis, "rdsObjects")
+if(!dir.exists(rdsObjects)){dir.create(rdsObjects)}
+print(baseAnalysis)
+```
+
+`r if(!new.analysis){"Use the previous analysis directory"}`
 
 ```{r reAnalysis, eval=!new.analysis, echo=!new.analysis}
 baseAnalysis <- file.path(basePath, analysis.name)
@@ -276,58 +295,22 @@ knitr::opts_chunk$set(
 
 ## Load data
 
-Take data previously generated during single dataset pipeline execution.
-
-```{r multiple-load}
-data.path <- file.path(baseAnalysis, "rdsObjects")
-sep_data <- grep("^06_c", list.files(data.path, full.names = FALSE, recursive = FALSE), value = TRUE)
-sep_data <- sep_data[c(1:2,4:5)]
-sep_days <- sort(str_extract(sep_data, "lab_day_[0-9]{2}"))
-
-if (dataset == "lab_3_days") {
-    toLoad_data <- grep(paste(sep_days[1:3], collapse = "|"), sep_data, value = TRUE)
-    sep_data.list <- lapply(toLoad_data, function(x) readRDS(file = file.path(data.path, x)))
-    names(sep_data.list) <- sep_days[1:3]
-} else if (dataset == "lab_4_days") {
-    toLoad_data <- grep(paste(sep_days, collapse = "|"), sep_data, value = TRUE)
-    sep_data.list <- lapply(toLoad_data, function(x) readRDS(file = file.path(data.path, x)))
-    names(sep_data.list) <- sep_days
-}
+```{r single-load}
+data.path <- file.path(mmgLab.data, dataset)
+raw.data <- Read10X(data.dir = data.path, gene = 2)
+SO <- CreateSeuratObject(counts=raw.data, project=dataset)
 ```
 
-```{r integrate-sep-data, eval=do.integ, echo=do.integ}
-SO <- sep_data.list[[1]]
-set.seed(general.seed)
+## Add/show metadata
 
-for (a_day in names(sep_data.list)[2:length(sep_data.list)]){
-  integ.list <- list(SO, sep_data.list[[a_day]])
-  features <- SelectIntegrationFeatures(integ.list)
-  anchors <- FindIntegrationAnchors(object.list = integ.list,
-                                    anchor.features = features)
-  SO <- IntegrateData(anchorset = anchors)
-}
-```
+```{r add-metaData}
+day <- str_to_title(str_extract(dataset, 'day_[0-9]*$'))
 
-```{r merge-sep-data, eval=do.merge, echo=do.merge}
-SO <- merge(x = sep_data.list[[1]], y = sep_data.list[2:length(sep_data.list)], merge.data = T)
-```
-
-```{r combine-gc, include = FALSE}
-rm(data.path, sep_data, sep_days, toLoad_data, sep_data.list)
-gc()
-```
-
-## Remove/show metadata
-
-```{r rm-metadata}
-SO$seurat_clusters <- NULL
-SO$orig.celltype <- NULL
-SO@meta.data[names(SO@meta.data) == grep("pANN", colnames(SO@meta.data), value = TRUE)] <- NULL
-
-rm_metadata <- grep("RNA_snn", colnames(SO@meta.data), value=TRUE)
-for (md in rm_metadata){
-    SO@meta.data[md] <- NULL
-}
+SO <- AddMetaData(object = SO, metadata = day, col.name = "day")
+SO <- AddMetaData(object = SO, metadata = dataset, col.name = "dataset")
+replicateValue <- if (dataset == "lab_day_05bis") 1 else 0
+SO <- AddMetaData(SO, metadata = replicateValue, col.name = 'replicate')
+SO$model <- "Gastruloids"
 ```
 
 ```{r show-metaData}
@@ -340,7 +323,13 @@ data.frame(head(SO@meta.data)) %>%
 
 ## Nomenclature for cell names
 
-```{r cells_nomenclature}
+```{r renaming_cells}
+cell_ids <- colnames(SO)
+UMIs <- str_extract(cell_ids, '[A-Z]*')
+cellnames <- paste(SO$dataset, SO$replicate, UMIs, sep = '_')
+
+SO <- RenameCells(SO, new.names = cellnames)
+
 head(colnames(SO), 3)
 ```
 
@@ -362,11 +351,411 @@ size_track1 <- data.frame(cbind(
 colnames(size_track1) <- c('Nbr_of_features', 'Nbr_of_cells', 'Analysis_step_name', 'Step_number')
 ```
 
+# Quality control
+
+## Percentage of mitochondrial reads & cutoffs
+
+```{r addMitoPercentage}
+SO[["percent.mt"]] <- PercentageFeatureSet(SO, pattern="^mt-")      # CHANGE THE PATTERN TO FIT ANY SPECIES
+```
+
+```{r plot-mito, fig.align='default', out.width='50%'}
+plot1 <- VlnPlot(SO, features = c("percent.mt"), ncol = 3) +
+  geom_hline(aes(yintercept = mito.high), color="blue", size=1.5) +
+    geom_hline(aes(yintercept = mito.low), color="orange", size=1.5) +
+    ggtitle("Mitochondrial expression\npercentage") +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
+    NoLegend()
+
+plot2 <- VlnPlot(SO, features = c("percent.mt"), ncol = 3) +
+    geom_hline(aes(yintercept = mito.high), color="blue", size=1.2) +
+    geom_hline(aes(yintercept = mito.low), color="orange", size=1.2) +
+    ylim(0, 12) +
+    ggtitle("Mitochondrial expression\npercentage - zoom in") +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
+    NoLegend()
+
+plot1
+plot2
+```
+
+## Percentage of ribosomal reads & cutoffs
+
+```{r addRiboPercentage}
+SO[["percent.ribo"]] <- PercentageFeatureSet(SO, pattern="^Rp[sl]")   # SEE IF ANY MODIFICATION IS REQUIRED
+```
+
+```{r plot-ribo}
+VlnPlot(SO, features = c("percent.ribo"), ncol = 3) +
+  geom_hline(aes(yintercept = ribo.high), color="blue", size=1.5) +
+  geom_hline(aes(yintercept = ribo.low), color="orange", size=1.5) +
+    ggtitle("Ribosomal expression\npercentage") +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
+    NoLegend()
+```
+
+## Read counts thresholds
+
+```{r plot-countRNA, fig.align='default', out.width='50%'}
+plot1 <- VlnPlot(SO, features = c("nCount_RNA"), ncol = 3) +
+  geom_hline(aes(yintercept = max.counts), color="purple", size=1.5) +
+    geom_hline(aes(yintercept = min.counts), color="green", size=1.5) +
+    ggtitle("Read counts per cell") +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
+    NoLegend()
+  
+plot2 <- VlnPlot(SO, features = c("nCount_RNA"), ncol = 3) +
+  geom_hline(aes(yintercept = max.counts), color="purple", size=1.5) +
+  geom_hline(aes(yintercept = min.counts), color="green", size=1.5) +
+    ylim(0, 25000) +
+    ggtitle("Read counts per cell\nzoom in") +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
+    NoLegend()
+
+plot1
+plot2
+```
+
+## Diversity of detected features per cell
+
+```{r plot-featureRNA}
+VlnPlot(SO, features = c("nFeature_RNA"), ncol = 3) +
+    geom_hline(aes(yintercept = min.feat), color="#56B4E9", size=1.5) +
+    ggtitle("Number of detected features\nper cell") +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
+    NoLegend()
+```
+
+## Repartition of detected features
+
+Features that are detected in less than `r min.cells` will be removed.
+
+```{r plot-geneRepartition}
+# Create dataframe
+df <- data.frame(rowSums(SO@assays$RNA@counts != 0))
+df$features <- rownames(df)
+colnames(df) <- c('Nbr_of_cells', 'features')
+rownames(df) <- NULL
+
+## Plot gene expression repartition
+ggplot(df, aes(x = Nbr_of_cells)) +
+  geom_histogram() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 20)) +
+  ylab('frequency') +
+  scale_x_continuous(trans = "log10") +
+  expand_limits(x=c(0,10500), y=c(0,2000)) +
+  geom_vline(aes(xintercept = min.cells), color="green", size=1) +
+  ggtitle(paste0("Repartition of expressed features\n", dataset))
+```
+
+GET THE NUMBER OF REMOVED FEATURES
+
+## Quality control application
+
+```{r plot-filtering}
+ggplot(SO@meta.data, aes(nCount_RNA, nFeature_RNA, colour = percent.mt)) +
+  geom_point() +
+  lims(colour = c(0, mito.high)) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 20)) +
+  ylab('nFeature_RNA') +
+  geom_hline(aes(yintercept = min.counts), color="#56B4E9", size=1) +
+  geom_vline(aes(xintercept = max.counts), color="purple", size=1) +
+  geom_vline(aes(xintercept = min.feat), color="green", size=1) +
+  ggtitle(paste0("Nb of features as function of Nb of counts\n", SO@project.name))
+```
+
+```{r filterQC}
+SO <- subset(SO,
+             features=which(df$Nbr_of_cells > min.cells),
+             subset = percent.mt > mito.low & percent.mt < mito.high & nCount_RNA > min.counts & nCount_RNA < max.counts & nFeature_RNA > min.feat)
+```
+
+```{r size-QCfiltering}
+size_track2 <- data.frame(cbind(
+    t(dim(SO)),
+    "QC filtering",
+    "02"
+))
+colnames(size_track2) <- c('Nbr_of_features', 'Nbr_of_cells', 'Analysis_step_name', 'Step_number')
+size_track2$Nbr_of_cells <- as.integer(as.character(size_track2$Nbr_of_cells))
+size_track2$Nbr_of_features <- as.integer(as.character(size_track2$Nbr_of_features))
+```
+
+```{r plot-evolution1}
+ggplot(rbind(size_track1, size_track2), aes(x = Analysis_step_name, y = Nbr_of_cells)) +
+  geom_col(aes(color = Analysis_step_name, fill = Analysis_step_name), position = position_dodge(), width = 0.6) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 20),
+        axis.title.x = element_blank()) +
+  scale_x_discrete(labels = label_wrap(6)) +
+  ggtitle("Number of cells in each sub-dataset\nafter QC") +
+    NoLegend()
+```
+
+```{r garbage-collec1, include = FALSE}
+gc()
+```
+
+# Preprocessing workflow before doublet removal
+
+```{r normalization1}
+SO <- NormalizeData(SO, normalization.method = norm.meth, verbose=FALSE)
+```
+
+```{r show-slots}
+data.frame(GetAssayData(SO, slot = "counts")[1:5,1:5]) %>%
+  knitr::kable(caption = "Raw counts in 'counts' slot") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "800px", height = "300px")
+data.frame(GetAssayData(SO, slot = "data")[1:5,1:5]) %>%
+  knitr::kable(caption = "Normalized counts in 'data' slot") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "800px", height = "300px")
+```
+
+```{r hvg-vst1, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
+SO <- FindVariableFeatures(SO, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
+```
+
+```{r hvg-mvp1, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
+SO <- FindVariableFeatures(SO, selection.method = hvg.meth, verbose=FALSE)
+```
+
+```{r show-HVGnum1, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
+t(as.data.frame(table(SO@assays[["RNA"]]@meta.features$mvp.variable))) %>%
+  knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
+               row.names = FALSE,
+               escape = F,
+               align = "cc") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+```{r scale1}
+SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
+```
+
+```{r runPCA1}
+SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
+```
+
+```{r plot-elbow1}
+ElbowPlot(SO, ndims = pca.npcs) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20)) +
+  geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
+  ggtitle(paste0(SO@project.name, "\nElbowPlot"))        
+```
+
+```{r clustering1}
+resolutions <- seq(0.6, 1.6, 0.2)
+SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
+SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
+```
+
+```{r runUMAP1}
+SO <- RunUMAP(SO, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
+```
+ls
+
+```{r plot-clusters-1, fig.align='default', fig.show='hold'}
+for (ares in resolutions){
+    clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
+    dimplotMetadata(SO, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares)) 
+    
+    Sys.sleep(0.5)
+}
+```
+
 ```{r save1}
-saveRDS(SO, file=file.path(rdsObjects, paste0("01_", DefaultAssay(SO), "_", dataset, ".rds")))
+saveRDS(SO, file=file.path(rdsObjects, paste0("01_standardWF_", dataset, ".rds")))
+```
+
+- - -
+
+\clearpage
+
+```{r setup3, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart1}
+SO <- readRDS(file.path(rdsObjects, paste0("01_standardWF_", dataset, ".rds")))
+```
+
+```{r setup4, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+# Doublets identification and removal
+
+## Parameters set up
+
+### Heterotypic doublets estimation
+
+#### Cell annotation
+
+```{r load-classifier}
+scmap_classifier <- readRDS(file.path(classifier.folder, "scmap_classifier_1000markers.rds"))
+ref_stages <- c("E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5")
+```
+
+
+```{r classifier-transfert}
+set.seed(general.seed)
+
+# create the corresponding SingleCellExperiment object
+sce <- as.SingleCellExperiment(x=SO)
+rowData(sce)$feature_symbol <- rownames(sce)
+counts(sce) <- as.matrix(counts(sce))
+logcounts(sce) <- as.matrix(logcounts(sce))
+
+# apply scmapCluster
+scmapCluster_results <- scmapCluster(projection=sce, index_list=scmap_classifier[ref_stages], threshold=0)
+
+# add the celltype from the in vivo atlas to the Seurat object
+SO <- AddMetaData(object=SO, metadata=scmapCluster_results$combined_labs, col.name="celltype_DF")
+```
+
+
+```{r plot-DF-celltype}
+rm(sce)
+gc()
+
+dimplotMetadata(SO, "celltype_DF")
+```
+
+
+#### Number of cells to label as doublet (ie. heterotypic doublets)
+
+```{r homotypic-proportion}
+# based on annotation (celltype from pijuansala classifier)
+# could be also the louvain clusters determined from the preprocessus step
+annotations <- SO@meta.data$celltype_DF
+homotypic.prop <- modelHomotypic(annotations)
+```
+
+```{r heterotypic-estimation}
+# based on annotation (celltype from pijuansala classifier)
+# could be also the louvain clusters determined from the preprocessus step
+nDoublets <- round(ncol(SO)*dblt.rate/100)
+nDoublets_nonhomo <- round(nDoublets*(1-homotypic.prop))
+```
+
+### Neighborhood size optimization
+
+```{r generate-pKs, results='hide', fig.show='hide'}
+sweep.res <- paramSweep_v3(SO, PCs = 1:top.pcs) # as estimated from PC elbowPlot
+sweep.stats_SO <- summarizeSweep(sweep.res, GT = FALSE)
+Sys.sleep(0.5)
+bcmvn_SO <- find.pK(sweep.stats_SO)
+```
+
+```{r optimize-pK, out.width='50%'}
+ggplot(bcmvn_SO, aes(pK, BCmetric, group = 1)) +
+  geom_point() +
+  geom_line()
+
+pK <- bcmvn_SO %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK) 
+pK <- as.numeric(as.character(pK[[1]]))
+```
+
+## Doublets identification - DoubletFinder run
+
+```{r runDF}
+SO <- doubletFinder_v3(SO, 
+                       PCs = 1:top.pcs, 
+                       pN = 0.25,
+                       pK = pK, 
+                       nExp = nDoublets_nonhomo)
+```
+
+```{r plot-doublets}
+# remove the cells identified as doublets of each of the sub-datasets
+col_dblts <- grep("DF.classifications", colnames(SO@meta.data), value=TRUE)
+
+dimplotMetadata(SO, col_dblts, title = paste0(dataset, " : doublets prediction"))
+```
+
+```{r df-count-celltypeDF}
+Idents(SO) <- col_dblts
+celltypeDF <- as.data.frame.matrix(table(Idents(SO), SO@meta.data$celltype_DF))
+
+celltypeDF %>%
+  knitr::kable(caption = "Doublet ratio over celltypes got from -- ") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+```{r df-count-cluster}
+clustersRes <- grep(paste0("res.", res, "$"), colnames(SO@meta.data), value=TRUE)
+clusterDF <- as.data.frame.matrix(table(Idents(SO), SO@meta.data[,which(colnames(SO@meta.data) == clustersRes)])) 
+
+clusterDF %>%
+  knitr::kable(caption = paste0("Doublet ratio over clusters at resolution ", res)) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+## Subset to singlets
+
+```{r remove-doublets, eval=FALSE, echo=FALSE}
+SOsing <- subset(SO, idents='Singlet')
+```
+
+```{r remove-uselessMD}
+# remove useless columns
+SOsing@meta.data[[grep("DF.classifications", colnames(SOsing@meta.data))]] <- NULL
+names(SOsing@meta.data)[names(SOsing@meta.data) == grep("pANN", colnames(SOsing@meta.data), value=T)] <- "pANN"
+```
+
+```{r size-singlets}
+size_track3 <- data.frame(cbind(
+    t(dim(SOsing)),
+    "Removed doublets",
+    "03"
+))
+colnames(size_track3) <- c('Nbr_of_features', 'Nbr_of_cells', 'Analysis_step_name', 'Step_number')
+size_track3$Nbr_of_cells <- as.integer(as.character(size_track3$Nbr_of_cells))
+size_track3$Nbr_of_features <- as.integer(as.character(size_track3$Nbr_of_features))
+```
+
+```{r plot-evolution2}
+ggplot(rbind(size_track1, size_track2, size_track3), aes(x = Analysis_step_name, y = Nbr_of_cells)) +
+  geom_col(aes(color = Analysis_step_name, fill = Analysis_step_name), position = position_dodge(), width = 0.6) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 20)) +
+  scale_x_discrete(labels = label_wrap(6)) +
+  ggtitle("Evolution of the number of cells")
+```
+
+```{r save2}
+saveRDS(SOsing, file=file.path(rdsObjects, paste0("02_removedDoublets_", dataset, ".rds")))
 ```
 
 ```{r garbage-collec2, include=FALSE}
+rm(SO)
 gc()
 ```
 
@@ -378,8 +767,8 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r restart1}
-SO <- readRDS(file.path(rdsObjects, paste0("01_integrated_", dataset, ".rds")))
+```{r restart2}
+SOsing <- readRDS(file.path(rdsObjects, paste0("02_removedDoublets_", dataset, ".rds")))
 ```
 
 ```{r setup6, eval=TRUE, include=FALSE}
@@ -390,21 +779,21 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Preprocessing workflow
+# Preprocessing workflow after doublets removal
 
 ```{r hvg-vst2, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
-SO <- FindVariableFeatures(SO, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
+SOsing <- FindVariableFeatures(SOsing, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
 ```
 
 ```{r hvg-mvp2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-SO <- FindVariableFeatures(SO, selection.method = hvg.meth, verbose=FALSE)
-head(SO@assays[[DefaultAssay(SO)]]@meta.features) %>%
+SOsing <- FindVariableFeatures(SOsing, selection.method = hvg.meth, verbose=FALSE)
+head(SOsing@assays[["RNA"]]@meta.features) %>%
   knitr::kable(caption = "Example of HVG selection output") %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
  
 ```{r show-HVGnum2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-t(as.data.frame(table(SO@assays[[DefaultAssay(SO)]]@meta.features$mvp.variable))) %>%
+t(as.data.frame(table(SOsing@assays[["RNA"]]@meta.features$mvp.variable))) %>%
   knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
                row.names = FALSE,
                escape = F,
@@ -414,51 +803,52 @@ t(as.data.frame(table(SO@assays[[DefaultAssay(SO)]]@meta.features$mvp.variable))
  
  
 ```{r save3-varFeat-dataset}
-var.feats.dataset <- VariableFeatures(SO)
+var.feats.dataset <- VariableFeatures(SOsing)
 saveRDS(var.feats.dataset, file=file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
 ```
 
 ```{r scale2, eval=do.scale, echo=do.scale}
-SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
+SOsing <- ScaleData(SOsing, features=rownames(SOsing), verbose=FALSE)
 ```
 
 ```{r copy-dataSlot2, eval=!do.scale, echo=!do.scale}
-SO <- SetAssayData(SO, assay = DefaultAssay(SO), slot = "scale.data", new.data = as.matrix(SO@assays[[DefaultAssay(SO)]]@data))
+SOsing <- SetAssayData(SOsing, assay = "RNA", slot = "scale.data", new.data = as.matrix(SOsing@assays$RNA@data))
 ```
 
 ```{r runPCA2}
-SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
+SOsing <- RunPCA(SOsing, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
 ```
 
 ```{r plot-elbow2}
-ElbowPlot(SO, ndims = pca.npcs) +
+ElbowPlot(SOsing, ndims = pca.npcs) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, size = 20)) +
   geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
-  ggtitle(paste0(SO@project.name, "\nElbowPlot")) 
+  ggtitle(paste0(SOsing@project.name, "\nElbowPlot"))        
 ```
 
 ```{r clustering2}
+SOsing@meta.data[grep("RNA_snn", names(SOsing@meta.data))] <- NULL
 resolutions <- seq(0.6, 1.6, 0.1)
-SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
-SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
+SOsing <- FindNeighbors(SOsing, dims = 1:top.pcs, verbose=FALSE)
+SOsing <- FindClusters(SOsing, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
 ```
 
 ```{r runUMAP2}
-SO <- RunUMAP(SO, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
+SOsing <- RunUMAP(SOsing, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
 ```
 
 ```{r plot-clusters-2}
 for (ares in resolutions){
-    clusterResName <- grep(paste0(DefaultAssay(SO), "_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
-    dimplotMetadata(SO, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares)) 
+    clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SOsing@meta.data), value = TRUE)
+    dimplotMetadata(SOsing, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares)) 
     
     Sys.sleep(0.5)
 }
 ```
 
 ```{r save4}
-saveRDS(SO, file=file.path(rdsObjects, paste0("02_preprocessing_", DefaultAssay(SO), "_", dataset, ".rds")))
+saveRDS(SOsing, file=file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
 ```
 
 ```{r setup7, eval=TRUE, include=FALSE}
@@ -469,12 +859,8 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r restart3integ, eval=do.integ, echo=do.integ}
-SO <- readRDS(file.path(rdsObjects, paste0("02_preprocessing_integrated_", dataset, ".rds")))
-```
-
-```{r restart3merge, eval=do.merge, echo=do.merge}
-SO <- readRDS(file.path(rdsObjects, paste0("02_preprocessing_RNA_", dataset, ".rds")))
+```{r restart3}
+SOsing <- readRDS(file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
 ```
 
 ```{r setup8, eval=TRUE, include=FALSE}
@@ -562,7 +948,7 @@ saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_"
 ```
 
 ```{r show-HVGnum-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-t(as.data.frame(table(atlas.subset@assays[[DefaultAssay(atlas.subset)]]@meta.features$mvp.variable))) %>%
+t(as.data.frame(table(atlas.subset@assays[["RNA"]]@meta.features$mvp.variable))) %>%
   knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
                row.names = FALSE,
                escape = F,
@@ -571,8 +957,8 @@ t(as.data.frame(table(atlas.subset@assays[[DefaultAssay(atlas.subset)]]@meta.fea
 ```
 
 ```{r integration-with-atlas}
-features <- SelectIntegrationFeatures(object.list = list(SO, atlas.subset))
-anchors <- FindIntegrationAnchors(object.list = list(SO, atlas.subset), anchor.features = features)
+features <- SelectIntegrationFeatures(object.list = list(SOsing, atlas.subset))
+anchors <- FindIntegrationAnchors(object.list = list(SOsing, atlas.subset), anchor.features = features)
 SO.align <- IntegrateData(anchorset = anchors)
 
 SO.align@project.name <- paste0(dataset, "_with_atlas")
@@ -686,7 +1072,7 @@ atlas.subset <- atlas.subset(SO.align, assay = DefaultAssay(atlas.subset), verbo
 ```
 
 ```{r copy-dataSlot-atlas, eval=!do.scale, echo=!do.scale}
-atlas.subset <- SetAssayData(atlas.subset, assay = DefaultAssay(atlas.subset), slot = "scale.data", new.data = as.matrix(atlas.subset@assays[[DefaultAssay(atlas.subset)]]@data))
+atlas.subset <- SetAssayData(atlas.subset, assay = DefaultAssay(atlas.subset), slot = "scale.data", new.data = as.matrix(atlas.subset@assays$RNA@data[VariableFeatures(atlas.subset),]))
 ```
 
 ```{r runPCA-atlas}
@@ -849,8 +1235,7 @@ knitr::opts_chunk$set(
 
 ```{r restart5}
 SO.align <- readRDS(file.path(rdsObjects, paste0("05_UMAP_shared_", dataset, "_with_atlas.rds")))
-# var.feats.dataset <- readRDS(file=file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
-SO <- readRDS(file.path(rdsObjects, paste0("02_preprocessing_integrated_", dataset, ".rds")))
+var.feats.dataset <- readRDS(file=file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
 ```
 
 ```{r setup12, eval=TRUE, include=FALSE}
@@ -863,33 +1248,19 @@ knitr::opts_chunk$set(
 
 # `r dataset` data analysis after label transfert and initialized UMAP coordinates
 
-```{r import-data}
-cellnames <- colnames(SO.align[,which(SO.align@meta.data$model == "Gastruloids")])
-
-dim.red <- Embeddings(object = SO.align[, cellnames], reduction = "umapShared2d")
-SO[["umapShared2d"]] <- CreateDimReducObject(embeddings = dim.red, assay = DefaultAssay(SO))
-dim.red <- Embeddings(object = SO.align[, cellnames], reduction = "umapShared3d")
-SO[["umapShared3d"]] <- CreateDimReducObject(embeddings = dim.red, assay = DefaultAssay(SO))
-
-celltypes <- SO.align@meta.data[cellnames, ]["celltype"]
-SO@meta.data$daily_celltype <- SO@meta.data$celltype
-SO@meta.data$celltype <- NULL
-SO <- AddMetaData(SO, metadata = celltypes, col.name = "celltype")
-```
-
-```{r extract-dataset, eval=FALSE, echo=FALSE}
+```{r extract-dataset}
 cells.use <- colnames(SO.align)[SO.align$model=="Gastruloids"]
 SO <- SO.align[,cells.use]
 SO@project.name <- dataset
 ```
 
-```{r set-DefaultAssay, eval=do.merge, echo=do.merge}
+```{r set-DefaultAssay}
 DefaultAssay(SO) <- "RNA"
 ```
 
 ## Analyzed data preprocessing
 
-```{r set-HVG, eval=FALSE, echo=FALSE}
+```{r set-HVG}
 VariableFeatures(SO) <- var.feats.dataset
 ```
 
@@ -897,12 +1268,11 @@ VariableFeatures(SO) <- var.feats.dataset
 SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
 ```
 
-<!--- ```{r copy-dataSlot3, eval=!do.scale, echo=!do.scale} -->
-```{r copy-dataSlot3, eval=FALSE, echo=FALSE}
-SO <- SetAssayData(SO, assay = DefaultAssay(SO), slot = "scale.data", new.data = as.matrix(SO@assays[[DefaultAssay(SO)]]@data))
+```{r copy-dataSlot3, eval=!do.scale, echo=!do.scale}
+SO <- SetAssayData(SO, assay = "RNA", slot = "scale.data", new.data = as.matrix(SO@assays$RNA@data))
 ```
 
-```{r runPCA3, eval=FALSE, echo=FALSE}
+```{r runPCA3}
 SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
 ```
 
@@ -911,7 +1281,7 @@ ElbowPlot(SO, ndims = pca.npcs) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, size = 20)) +
   geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
-  ggtitle(paste0(SO@project.name, "\nElbowPlot")) 
+  ggtitle(paste0(SO@project.name, "\nElbowPlot"))        
 ```
 
 ## Run UMAP algorithm, nested on atlas coordinates
@@ -980,7 +1350,7 @@ SO[["umap2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP2d_", assay
 ```
 
 ```{r save7}
-saveRDS(SO, file=file.path(rdsObjects, paste0("06bis_umap_2d3d_", SO@project.name, ".rds")))
+saveRDS(SO, file=file.path(rdsObjects, paste0("06_umap_2d3d_", SO@project.name, ".rds")))
 ```
 
 ```{r garbage-collec11, include=FALSE}
@@ -989,9 +1359,6 @@ gc()
 ```
 
 ```{r show-umap2d}
-dimplotMetadata(SO, "day",
-				title = paste0("Gastruloid cells in UMAP embbeding\nnested on atlas UMAP coordinates"),
-                reduction = "umap2d")
 dimplotMetadata(SO, "celltype",
                 title = paste0("Gastruloid cells in UMAP embbeding\nnested on atlas UMAP coordinates"),
                 reduction = "umap2d")
@@ -1019,14 +1386,14 @@ knitr::opts_chunk$set(
 
 ## Clustering (FindNeighbors, FindClusters)
 
-```{r clustering3, eval=FALSE, echo=FALSE}
+```{r clustering3}
 resolutions <- seq(0.6, 1.6, 0.1)
 SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
 SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
 ```
 
 ```{r save8}
-saveRDS(SO, file=file.path(rdsObjects, paste0("06bis_clusters_", SO@project.name, ".rds")))
+saveRDS(SO, file=file.path(rdsObjects, paste0("06_clusters_", SO@project.name, ".rds")))
 ```
 
 ```{r garbage-collec12, include=FALSE}
@@ -1034,17 +1401,10 @@ gc()
 ```
 
 ```{r show-clustering}
-#selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
-#Idents(SO) <- SO@meta.data[[selectedRes]]
-#dimplotMetadata(SO, selectedRes,
-#                reduction = "umap2d")
-for (ares in resolutions){
-    clusterResName <- grep(paste0(DefaultAssay(SO), "_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
-    dimplotMetadata(SO, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares),
-    				reduction = "umap2d") 
-    
-    Sys.sleep(0.5)
-}
+selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
+Idents(SO) <- SO@meta.data[[selectedRes]]
+dimplotMetadata(SO, selectedRes,
+                reduction = "umap2d")
 ```
 
 ```{r setup15, eval=TRUE, include=FALSE}
@@ -1105,7 +1465,7 @@ topNmarkers <- left_join(topNmarkers, domDays, by='cluster')
 write.table(x = topNmarkers, file = file.path(dataset.anFolder, paste0("top", top.markers, "markers.csv")), sep = ",", row.names = F, col.names = T)
 ```
 
-```{r displayTable}
+```{r diplayTable}
 datatable(topNmarkers, rownames = FALSE, filter = "top", options = list(pageLength = 5, scrollX=T))
 ```
 
