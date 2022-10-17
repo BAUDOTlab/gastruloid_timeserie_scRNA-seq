@@ -1,5 +1,5 @@
 ---
-author: "CC"
+author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
 date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
 output:
     html_document:
@@ -78,7 +78,11 @@ params:
     top.markers:
         value: 20
     general.seed: 17
-title: "Protocole 1: `r params$dataset`"
+title: |
+  | Protocole 1:
+  | single scRNAseq data analysis
+  | `r params$dataset`
+  | 
 ---
 
 ```{r setup1, eval=TRUE, include=FALSE}
@@ -132,8 +136,7 @@ library(scales)
 library(formatR)
 library(uwot)
 library(DT)
-
-options(ggrepel.max.overlaps = Inf)
+library(patchwork)
 ```
 
 ```{r get-params, include=FALSE}
@@ -146,6 +149,7 @@ attach(params)
 source("./utilities/dimplotMetadata.R")
 source("./utilities/extract_topn.R")
 source("./utilities/add_dominantMetadata.R")
+source("./utilities/additionalPlots.R")
 #source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/FeatureViolinplot.R")
 #source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/Violin_dotplot.R")
 ```
@@ -153,7 +157,7 @@ source("./utilities/add_dominantMetadata.R")
 
 # Global settings {.tabset .tabset-pills .tabset-fade}
 
-## `r dataset` setting analysis
+## `r dataset` analysis settings
 
 ```{r show-params}
 ul <- unlist(params)
@@ -182,10 +186,8 @@ Set either input and output directories.
 ```{r base-path}
 #basePath <- "/home/celine/temp2"
 #basePath <- "/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis" # local server
-basePath <- "/shared/projects/XX/XX" # IFB server
+basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
 ```
-
-Root directory for the analysis : `r basePath`
 
 ### Input directories
 
@@ -213,8 +215,7 @@ otherInputs <- file.path(inputs.folder, "other")
 
 ### Output directories
 
-Depending on the previously run analysis, selection of the `baseAnalysis` directory to output
-figures, tables and reports.
+Management of pre-existing ran analysis to output figures, tables and reports.
 
 ```{r anteriority, eval=!new.analysis, echo=!new.analysis}
 last_analysis <- 0
@@ -236,8 +237,6 @@ analysis.name <- paste0(analysis.name, as.character(last_analysis))
 analysis.name <- paste0(analysis.name, as.character(last_analysis + 1))
 ```
 
-`r if(new.analysis){"Creation of a new directory"}`
-
 ```{r newAnalysis, eval=new.analysis, echo=new.analysis}
 baseAnalysis <- file.path(basePath, analysis.name)
 if(!dir.exists(baseAnalysis)){dir.create(baseAnalysis)}
@@ -246,16 +245,11 @@ if(!dir.exists(rdsObjects)){dir.create(rdsObjects)}
 print(baseAnalysis)
 ```
 
-`r if(!new.analysis){"Use the previous analysis directory"}`
-
 ```{r reAnalysis, eval=!new.analysis, echo=!new.analysis}
 baseAnalysis <- file.path(basePath, analysis.name)
 rdsObjects <- file.path(baseAnalysis, "rdsObjects")
 if(!dir.exists(rdsObjects)){dir.create(rdsObjects)}
-print(baseAnalysis)
 ```
-
-Based on the choosen path, **create** or **reuse** the directory dedicated to the `r dataset` dataset.
 
 ```{r dataset-analysisFolder}
 dataset.anFolder <- file.path(baseAnalysis, dataset)
@@ -270,11 +264,13 @@ knitr::opts_chunk$set(
     eval = TRUE,
     
     # figures
-    fig.path=fig.folder
+    fig.path = fig.folder
 )
 ```
 
 ## Set up color vectors
+
+Load table to in which colors are defined for the labels used in the analysis.
 
 ```{r load_colorTables}
 colors.table <- read.table(file=file.path(inputTables.folder, "ClusterColors.tsv"), sep="\t", header=T, comment.char="", as.is=T)
@@ -293,7 +289,7 @@ knitr::opts_chunk$set(
 
 # Get `r dataset` data
 
-## Load data
+## Load the data
 
 ```{r single-load}
 data.path <- file.path(mmgLab.data, dataset)
@@ -301,7 +297,7 @@ raw.data <- Read10X(data.dir = data.path, gene = 2)
 SO <- CreateSeuratObject(counts=raw.data, project=dataset)
 ```
 
-## Add/show metadata
+## Add and show metadata
 
 ```{r add-metaData}
 day <- str_to_title(str_extract(dataset, 'day_[0-9]*$'))
@@ -333,9 +329,12 @@ SO <- RenameCells(SO, new.names = cellnames)
 head(colnames(SO), 3)
 ```
 
-Below, we can see that there are as many unique cell identifiers as the number of cells among all the sub-datasets.
-Nbr of cells among in the dataset: `r dim(SO)[2]`
-Nbr of cell identifiers: `r length(unique(colnames(SO)))`
+Below, we can see that there are as many unique cell identifiers as the number of cells.
+
+Number of cells in the dataset: `#r dim(SO)[2]`
+
+Number of unique cell identifiers: `#r length(unique(colnames(SO)))`
+
 
 - - -
 
@@ -359,7 +358,7 @@ colnames(size_track1) <- c('Nbr_of_features', 'Nbr_of_cells', 'Analysis_step_nam
 SO[["percent.mt"]] <- PercentageFeatureSet(SO, pattern="^mt-")      # CHANGE THE PATTERN TO FIT ANY SPECIES
 ```
 
-```{r plot-mito, fig.align='default', out.width='50%'}
+```{r plot-mito, fig.align='default', out.width='50%', fig.show='hold'}
 plot1 <- VlnPlot(SO, features = c("percent.mt"), ncol = 3) +
   geom_hline(aes(yintercept = mito.high), color="blue", size=1.5) +
     geom_hline(aes(yintercept = mito.low), color="orange", size=1.5) +
@@ -387,7 +386,7 @@ plot2
 SO[["percent.ribo"]] <- PercentageFeatureSet(SO, pattern="^Rp[sl]")   # SEE IF ANY MODIFICATION IS REQUIRED
 ```
 
-```{r plot-ribo}
+```{r plot-ribo, fig.align = 'center'}
 VlnPlot(SO, features = c("percent.ribo"), ncol = 3) +
   geom_hline(aes(yintercept = ribo.high), color="blue", size=1.5) +
   geom_hline(aes(yintercept = ribo.low), color="orange", size=1.5) +
@@ -399,7 +398,7 @@ VlnPlot(SO, features = c("percent.ribo"), ncol = 3) +
 
 ## Read counts thresholds
 
-```{r plot-countRNA, fig.align='default', out.width='50%'}
+```{r plot-countRNA, fig.align='default', out.width='50%', fig.show='hold'}
 plot1 <- VlnPlot(SO, features = c("nCount_RNA"), ncol = 3) +
   geom_hline(aes(yintercept = max.counts), color="purple", size=1.5) +
     geom_hline(aes(yintercept = min.counts), color="green", size=1.5) +
@@ -421,9 +420,9 @@ plot1
 plot2
 ```
 
-## Diversity of detected features per cell
+## Number of detected features per cell
 
-```{r plot-featureRNA}
+```{r plot-featureRNA, fig.align='center'}
 VlnPlot(SO, features = c("nFeature_RNA"), ncol = 3) +
     geom_hline(aes(yintercept = min.feat), color="#56B4E9", size=1.5) +
     ggtitle("Number of detected features\nper cell") +
@@ -434,7 +433,7 @@ VlnPlot(SO, features = c("nFeature_RNA"), ncol = 3) +
 
 ## Repartition of detected features
 
-Features that are detected in less than `r min.cells` will be removed.
+Features that are detected in `r min.cells` cells or fewer will be removed from the analysis.
 
 ```{r plot-geneRepartition}
 # Create dataframe
@@ -449,14 +448,17 @@ ggplot(df, aes(x = Nbr_of_cells)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5),
         text = element_text(size = 20)) +
-  ylab('frequency') +
+  ylab('Number of features') +
+  xlab('Number of cells') +
   scale_x_continuous(trans = "log10") +
   expand_limits(x=c(0,10500), y=c(0,2000)) +
   geom_vline(aes(xintercept = min.cells), color="green", size=1) +
-  ggtitle(paste0("Repartition of expressed features\n", dataset))
+  ggtitle(paste0("Repartition of detected features\n", dataset)) +
+  geom_text(aes(x=min.cells,label = paste0("\n", min.cells), y=1800, hjust = 1))
 ```
 
-GET THE NUMBER OF REMOVED FEATURES
+Based on this threshold, 'r length(which(df$Nbr_of_cells <= min.cells))' features
+are removed for the downstream analysis.
 
 ## Quality control application
 
@@ -468,10 +470,12 @@ ggplot(SO@meta.data, aes(nCount_RNA, nFeature_RNA, colour = percent.mt)) +
   theme(plot.title = element_text(hjust = 0.5),
         text = element_text(size = 20)) +
   ylab('nFeature_RNA') +
-  geom_hline(aes(yintercept = min.counts), color="#56B4E9", size=1) +
+  geom_hline(aes(yintercept = min.feat), color="#56B4E9", size=1) +
   geom_vline(aes(xintercept = max.counts), color="purple", size=1) +
-  geom_vline(aes(xintercept = min.feat), color="green", size=1) +
-  ggtitle(paste0("Nb of features as function of Nb of counts\n", SO@project.name))
+  geom_vline(aes(xintercept = min.counts), color="green", size=1) +
+  ggtitle(paste0("Number of read counts and features within each cells\n", SO@project.name)) +
+  xlab('Number of read counts') +
+  ylab('Number of features')
 ```
 
 ```{r filterQC}
@@ -499,8 +503,9 @@ ggplot(rbind(size_track1, size_track2), aes(x = Analysis_step_name, y = Nbr_of_c
         text = element_text(size = 20),
         axis.title.x = element_blank()) +
   scale_x_discrete(labels = label_wrap(6)) +
-  ggtitle("Number of cells in each sub-dataset\nafter QC") +
-    NoLegend()
+  ggtitle(paste0("Evolution of the number of cells in the dataset\n", dataset)) +
+  NoLegend() +
+  ylab('Number of cells')
 ```
 
 ```{r garbage-collec1, include = FALSE}
@@ -532,6 +537,7 @@ SO <- FindVariableFeatures(SO, nfeatures=hvg.num, selection.method = hvg.meth, v
 SO <- FindVariableFeatures(SO, selection.method = hvg.meth, verbose=FALSE)
 ```
 
+
 ```{r show-HVGnum1, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
 t(as.data.frame(table(SO@assays[["RNA"]]@meta.features$mvp.variable))) %>%
   knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
@@ -545,7 +551,7 @@ t(as.data.frame(table(SO@assays[["RNA"]]@meta.features$mvp.variable))) %>%
 SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
 ```
 
-```{r runPCA1}
+```{r runPCA1, results='hold'}
 SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
 ```
 
@@ -566,9 +572,8 @@ SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, rando
 ```{r runUMAP1}
 SO <- RunUMAP(SO, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
 ```
-ls
 
-```{r plot-clusters-1, fig.align='default', fig.show='hold'}
+```{r plot-clusters-1, fig.align='default', out.width="50%", fig.show='hold'}
 for (ares in resolutions){
     clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
     dimplotMetadata(SO, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares)) 
@@ -607,11 +612,33 @@ knitr::opts_chunk$set(
 
 # Doublets identification and removal
 
+Doublets are considered as technical artifacts that have to be filtered out.
+In this part, I will use the R package DoubletFinder (REFERENCE PAPIER DOUBLET FINDER).
+
+This tool require the following steps
+
+-   homotypic doublet proportion estimation,
+
+-   pK parameter optimization
+
+to be completed.
+
 ## Parameters set up
+
+DoubletFinder relies on 3 main parameters:
+
+-   pN, the number of artificial generated doublets - by default = 0.25
+
+-   pK, the PC neighborhood size used to compute proportion of artificial nearest neighbors (pANN), to be determined
+
+-   nExp, the number of predicted doublets.
 
 ### Heterotypic doublets estimation
 
 #### Cell annotation
+
+I directly load a classifier done for 1165 gene markers.
+This classifier was generated by the Rossi et al. using the atlas of the Pijuan-Sala et al.
 
 ```{r load-classifier}
 scmap_classifier <- readRDS(file.path(classifier.folder, "scmap_classifier_1000markers.rds"))
@@ -660,7 +687,9 @@ nDoublets <- round(ncol(SO)*dblt.rate/100)
 nDoublets_nonhomo <- round(nDoublets*(1-homotypic.prop))
 ```
 
-### Neighborhood size optimization
+There are `#r nDoublets_nonhomo` cells estimated as heterotypic doublets.
+
+### Neighborhood size optimization (pK parameter)
 
 ```{r generate-pKs, results='hide', fig.show='hide'}
 sweep.res <- paramSweep_v3(SO, PCs = 1:top.pcs) # as estimated from PC elbowPlot
@@ -669,7 +698,7 @@ Sys.sleep(0.5)
 bcmvn_SO <- find.pK(sweep.stats_SO)
 ```
 
-```{r optimize-pK, out.width='50%'}
+```{r optimize-pK}
 ggplot(bcmvn_SO, aes(pK, BCmetric, group = 1)) +
   geom_point() +
   geom_line()
@@ -702,7 +731,7 @@ Idents(SO) <- col_dblts
 celltypeDF <- as.data.frame.matrix(table(Idents(SO), SO@meta.data$celltype_DF))
 
 celltypeDF %>%
-  knitr::kable(caption = "Doublet ratio over celltypes got from -- ") %>% 
+  knitr::kable(caption = "Doublet ratio over celltypes got from Rossi et al. classifier") %>% 
   kable_styling(bootstrap_options = c("striped", "hover")) %>%
   scroll_box(width = "100%", height = "300px")
 ```
@@ -743,9 +772,12 @@ ggplot(rbind(size_track1, size_track2, size_track3), aes(x = Analysis_step_name,
   geom_col(aes(color = Analysis_step_name, fill = Analysis_step_name), position = position_dodge(), width = 0.6) +
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5),
-        text = element_text(size = 20)) +
+        text = element_text(size = 20),
+        axis.title.x = element_blank()) +
   scale_x_discrete(labels = label_wrap(6)) +
-  ggtitle("Evolution of the number of cells")
+  ggtitle(paste0("Evolution of the number of cells in the dataset\n", dataset)) +
+  NoLegend() +
+  ylab('Number of cells')
 ```
 
 ```{r save2}
@@ -789,7 +821,7 @@ head(SOsing@assays[["RNA"]]@meta.features) %>%
   knitr::kable(caption = "Example of HVG selection output") %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
- 
+
 ```{r show-HVGnum2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
 t(as.data.frame(table(SOsing@assays[["RNA"]]@meta.features$mvp.variable))) %>%
   knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
@@ -813,7 +845,7 @@ SOsing <- ScaleData(SOsing, features=rownames(SOsing), verbose=FALSE)
 SOsing <- SetAssayData(SOsing, assay = "RNA", slot = "scale.data", new.data = as.matrix(SOsing@assays$RNA@data))
 ```
 
-```{r runPCA2}
+```{r runPCA2, results='hold'}
 SOsing <- RunPCA(SOsing, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
 ```
 
@@ -821,8 +853,8 @@ SOsing <- RunPCA(SOsing, npcs = pca.npcs, nfeatures.print = pca.print, seed.use 
 ElbowPlot(SOsing, ndims = pca.npcs) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, size = 20)) +
-  geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
-  ggtitle(paste0(SOsing@project.name, "\nElbowPlot"))        
+  geom_vline(aes(xintercept = top.pcs), color = "purple", size = 1) +
+  ggtitle(paste0(SOsing@project.name, "\nElbowPlot"))
 ```
 
 ```{r clustering2}
@@ -836,7 +868,7 @@ SOsing <- FindClusters(SOsing, resolution = resolutions, algorithm = algo.cluste
 SOsing <- RunUMAP(SOsing, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
 ```
 
-```{r plot-clusters-2}
+```{r plot-clusters-2, fig.align='default', out.width="50%", fig.show='hold'}
 for (ares in resolutions){
     clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SOsing@meta.data), value = TRUE)
     dimplotMetadata(SOsing, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares)) 
@@ -877,7 +909,7 @@ gc()
 
 \clearpage
 
-# Learning transfert from an Atlas
+# Transfert learning from an Atlas
 
 ## Atlas preparation
 
@@ -979,7 +1011,8 @@ ElbowPlot(SO.align, ndims = pca.npcs)
 
 ```{r show-alignedUMAP}
 SO.align <- RunUMAP(SO.align, reduction = "pca", dims = 1:10)
-dimplotMetadata(SO.align, metadata = "model", title = "Gastruloid and atlas cells\nin a shared UMAP embedding")
+dimplotMetadata(SO.align, metadata = "model", title = "Gastruloid and atlas cells\nin a shared UMAP embedding") +
+  RestoreLegend()
 ```
 
 ### Cell identity transfert
@@ -1075,7 +1108,7 @@ atlas.subset <- SetAssayData(atlas.subset, assay = DefaultAssay(atlas.subset), s
 
 ```{r runPCA-atlas}
 atlas.subset <- RunPCA(atlas.subset, reduction.name = "PCAown", reduction.key = "PCown_", verbose = FALSE)
-ElbowPlot(atlas.subset, ndims = pca.npcs, reduction = "PCAown")
+#ElbowPlot(atlas.subset, ndims = pca.npcs, reduction = "PCAown")
 ```
 
 ```{r garbage-collec8, include=FALSE}
@@ -1110,17 +1143,23 @@ tmp <- umap(X = Embeddings(atlas.subset[[reduction.use]])[cells.use, 1:10],
             local_connectivity = local_connectivity,
             ret_model=T,
             verbose = F)
-tmp2 <- 0*Embeddings(atlas.subset[[reduction.use]])[,1:3]
-tmp2[cells.use,] <- tmp$embedding
+tmp2 <- 0*Embeddings(atlas.subset[[reduction.use]])[, 1:3]
+tmp2[cells.use, ] <- tmp$embedding
 atlas.subset[["umap200"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP200_")
 ```
 
 UMAP dimension reduction on atlas, with 200 cells per celltype, 300 neighbors
 
 ```{r plot-atlasUMAP-200}
-dimplotMetadata(atlas.subset, "celltype",
-                title = paste0(dataset, " : atlas celltypes\nvisualization reduced to 200 cells per celltype"),
-                reduction = "umap200")
+DimPlot(atlas.subset, pt.size = 1, reduction = "umap200", label = T, cells = sample(cells.use),
+    repel = TRUE, cols = colors.celltype[levels(Idents(atlas.subset))]) +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : atlas celltypes\nvisualization reduced to 200 cells per celltype")) +
+    CenterTitle() +
+    NoAxes()
+# dimplotMetadata(atlas.subset, "celltype",
+#                 title = paste0(dataset, " : atlas celltypes\nvisualization reduced to 200 cells per celltype"),
+#                 reduction = "umap200")
 ```
 
 ```{r save-atlasUMAP-200}
@@ -1139,7 +1178,7 @@ for(i in unique(atlas.subset$celltype)){
 }
 ```
 
-#### Create random initial coordinates for the integrated object of Atlas and analyzed data
+#### Create random initial coordinates for the integrated object based on the centroid table
 
 ```{r UMAPinit_sharedLayout}
 min_dist <- 8
@@ -1214,6 +1253,15 @@ tmp2[cells.use,] <- tmp$embedding
 SO.align[["umapShared2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAPshared2d_", assay = DefaultAssay(SO.align))
 ```
 
+```{r plot-SOalign-umapShared2d}
+DimPlot(SO.align, pt.size = 1, reduction = "umapShared2d", label = T, 
+    repel = TRUE, cols = colors.celltype[levels(Idents(atlas.subset))]) + 
+    NoLegend() +
+    ggtitle(paste0(dataset, " : celltype layout\non the integrated object")) +
+    CenterTitle() +
+    NoAxes()
+```
+
 ```{r save6}
 saveRDS(SO.align, file=file.path(rdsObjects, paste0("05_UMAP_shared_", SO.align@project.name, ".rds")))
 ```
@@ -1247,8 +1295,8 @@ knitr::opts_chunk$set(
 # `r dataset` data analysis after label transfert and initialized UMAP coordinates
 
 ```{r extract-dataset}
-cells.use <- colnames(SO.align)[SO.align$model=="Gastruloids"]
-SO <- SO.align[,cells.use]
+cells.use <- colnames(SO.align)[SO.align$model == "Gastruloids"]
+SO <- SO.align[, cells.use]
 SO@project.name <- dataset
 ```
 
@@ -1463,10 +1511,126 @@ topNmarkers <- left_join(topNmarkers, domDays, by='cluster')
 write.table(x = topNmarkers, file = file.path(dataset.anFolder, paste0("top", top.markers, "markers.csv")), sep = ",", row.names = F, col.names = T)
 ```
 
-```{r diplayTable}
+```{r displayTable}
 datatable(topNmarkers, rownames = FALSE, filter = "top", options = list(pageLength = 5, scrollX=T))
 ```
 
+```{r setup17, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
 
+```{r restart8}
+SO <- readRDS(file.path(rdsObjects, paste0("06_clusters_", dataset, ".rds")))
+selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
+markers.sign <- read.table(file.path(dataset.anFolder, paste0("markers_min.pct_logFC_default_", dataset, ".integ.res_", selectedRes, ".csv")), sep = ",", header = T)
+```
 
+```{r setup18, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+# Additional Plots
+
+```{r addPlots-1}
+# Load list of genes of interest
+goi <- read.table(file.path(otherInputs, "genes_of_interest3-scRNAseq.tsv"), sep = ",")
+goiList <- goi$V1
+
+# Parameters
+ntop <- 5
+```
+
+```{r addPlots-2}
+DefaultAssay(SO) <- "RNA"
+topNmarkers <- extract_topn(markers.sign, topn = ntop)
+topNgenes <- unique(topNmarkers$gene)
+```
+
+```{r clean-goiList}
+genesToRemove <- goiList[!(goiList %in% rownames(SO))]
+if (length(genesToRemove) >= 1){
+    cat(paste0("One or more genes of interest are not in the dataset:\n\t",
+                 str_c(genesToRemove, collapse = ", "), "\nThe listed genes are to be removed of the plots"))
+}
+goiList <- goiList[goiList %in% rownames(SO)] # remove the 
+```
+
+## Cluster identity {.tabset .tabset-pills .tabset-fade}
+
+```{r addPlots-3}
+Idents(SO) <- factor(SO@meta.data$RNA_snn_res.1, levels = sort(as.numeric(levels(as.factor(SO@meta.data$RNA_snn_res.1)))))
+```
+
+### DimPlot of the cluster identity
+```{r cluster-dimplot}
+## DimPlot the clusters
+createDimPlot(SO, title = paste0("Clusters at resolution 1\n", SO@project.name))
+```
+
+### DotPlot of the markers on cluster identity
+
+```{r cluster-dotPlot-markers}
+## DotPlot the n-top markers of each cluster
+dotPlotsMarkers(SO, topNgenes, title=paste0("Top ", ntop, " markers of each cluster in clusters"))
+```
+
+### DotPlot of the genes of interest on cluster identity
+
+```{r cluster-dotPlot-goi}
+## DotPlot the genes of interest
+dotPlotsGoi(SO, goiList, title="Genes of interest in clusters")
+```
+
+### FeaturePlot of the markers with cluster labels
+
+```{r cluster-featurePlot-markers}
+## FeaturePlot the genes of interest
+# doFeaturePlot(SO, topNgenes) # single plot on all the data
+doFeaturePlot(SO, topNgenes) # complete data + splitted by day
+```
+
+### FeaturePlot of the genes of interest with cluster labels
+
+```{r cluster-featurePlot-goi}
+## FeaturePlot the genes of interest
+# doFeaturePlot(SO, goiList[10:12]) # single plot on all the data
+doFeaturePlot(SO, goiList) # complete data + splitted by day
+```
+
+## Celltype identity {.tabset .tabset-pills .tabset-fade}
+
+```{r addPlots-4}
+Idents(SO) <- SO$celltype
+```
+
+### DimPlot of the celltype identity
+
+```{r celltype-dimplot}
+## DimPlot the celltype
+createDimPlot(SO, title=paste0("Celltype from atlas transfert identity labels\n", SO@project.name),
+              cols=colors.celltype[levels(Idents(SO))]) +
+    NoLegend()
+```
+
+### DotPlot of the markers on celltype identity
+
+```{r celltype-dotPlot-markers}
+## DotPlot the n-top markers of each celltype
+dotPlotsMarkers(SO, topNgenes, title=paste0("Top ", ntop, " markers of each cluster in celltypes"))
+```
+
+### DotPlot of the genes of interest on celltype identity
+
+```{r celltype-dotPlot-goi}
+## DotPlot the genes of interest
+dotPlotsGoi(SO, goiList, title="Genes of interest in celltypes")
+```
 

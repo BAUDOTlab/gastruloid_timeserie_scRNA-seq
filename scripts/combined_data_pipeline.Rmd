@@ -1,5 +1,5 @@
 ---
-author: "CC"
+author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
 date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
 output:
     html_document:
@@ -78,7 +78,10 @@ params:
     top.markers:
         value: 20
     general.seed: 17
-title: "Protocole 2: `r params$dataset`\nCombined datasets analysis"
+title: |
+    | Protocole 2:
+    | Combined datasets analysis
+    | `r params$dataset`
 ---
 
 ```{r setup1, eval=TRUE, include=FALSE}
@@ -132,8 +135,7 @@ library(scales)
 library(formatR)
 library(uwot)
 library(DT)
-
-options(ggrepel.max.overlaps = 5)
+library(patchwork)
 ```
 
 ```{r get-params, include=FALSE}
@@ -146,6 +148,7 @@ attach(params)
 source("./utilities/dimplotMetadata.R")
 source("./utilities/extract_topn.R")
 source("./utilities/add_dominantMetadata.R")
+source("./utilities/additionalPlots.R")
 #source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/FeatureViolinplot.R")
 #source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/Violin_dotplot.R")
 ```
@@ -153,7 +156,7 @@ source("./utilities/add_dominantMetadata.R")
 
 # Global settings {.tabset .tabset-pills .tabset-fade}
 
-## `r dataset` setting analysis
+## `r dataset` analysis settings
 
 ```{r show-params}
 ul <- unlist(params)
@@ -182,10 +185,8 @@ Set either input and output directories.
 ```{r base-path}
 #basePath <- "/home/celine/temp2"
 #basePath <- "/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis" # local server
-basePath <- "/shared/projects/XX/XX" # IFB server
+basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
 ```
-
-Root directory for the analysis : `r basePath`
 
 ### Input directories
 
@@ -207,8 +208,7 @@ otherInputs <- file.path(inputs.folder, "other")
 
 ### Output directories
 
-Depending on the previously run analysis, selection of the `baseAnalysis` directory to output
-figures, tables and reports.
+Management of pre-existing ran analysis to output figures, tables and reports.
 
 ```{r anteriority, eval=(analysis.name == "analysis_"), echo=(analysis.name == "analysis_")}
 last_analysis <- 0
@@ -223,8 +223,6 @@ if (length(anterior) > 0){
 }
 ```
 
-Will use the previous analysis directory
-
 ```{r default_analysisName, eval=(!new.analysis && analysis.name == "analysis_"), echo=(!new.analysis && analysis.name == "analysis_")}
 analysis.name <- paste0(analysis.name, as.character(last_analysis))
 ```
@@ -236,7 +234,6 @@ if(!dir.exists(rdsObjects)){dir.create(rdsObjects)}
 print(baseAnalysis)
 ```
 
-Based on the choosen path, **create** or **reuse** the directory dedicated to the `r dataset` dataset.
 
 ```{r dataset-analysisFolder}
 dataset.anFolder <- file.path(baseAnalysis, dataset)
@@ -251,11 +248,13 @@ knitr::opts_chunk$set(
     eval = TRUE,
     
     # figures
-    fig.path=fig.folder
+    fig.path = fig.folder
 )
 ```
 
 ## Set up color vectors
+
+Load table to in which colors are defined for the labels used in the analysis.
 
 ```{r load_colorTables}
 colors.table <- read.table(file=file.path(inputTables.folder, "ClusterColors.tsv"), sep="\t", header=T, comment.char="", as.is=T)
@@ -274,7 +273,7 @@ knitr::opts_chunk$set(
 
 # Get `r dataset` data
 
-## Load data
+## Load the data
 
 Take data previously generated during single dataset pipeline execution.
 
@@ -344,9 +343,12 @@ data.frame(head(SO@meta.data)) %>%
 head(colnames(SO), 3)
 ```
 
-Below, we can see that there are as many unique cell identifiers as the number of cells among all the sub-datasets.
-Nbr of cells among in the dataset: `r dim(SO)[2]`
-Nbr of cell identifiers: `r length(unique(colnames(SO)))`
+Below, we can see that there are as many unique cell identifiers as the number of cells.
+
+Number of cells in the dataset: `r dim(SO)[2]`
+
+Number of unique cell identifiers: `r length(unique(colnames(SO)))`
+
 
 - - -
 
@@ -426,7 +428,7 @@ SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
 SO <- SetAssayData(SO, assay = DefaultAssay(SO), slot = "scale.data", new.data = as.matrix(SO@assays[[DefaultAssay(SO)]]@data))
 ```
 
-```{r runPCA2}
+```{r runPCA2, results='hold'}
 SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
 ```
 
@@ -434,8 +436,8 @@ SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = genera
 ElbowPlot(SO, ndims = pca.npcs) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, size = 20)) +
-  geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
-  ggtitle(paste0(SO@project.name, "\nElbowPlot")) 
+  geom_vline(aes(xintercept = top.pcs), color = "purple", size = 1) +
+  ggtitle(paste0(SO@project.name, "\nElbowPlot"))
 ```
 
 ```{r clustering2}
@@ -448,7 +450,7 @@ SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, rando
 SO <- RunUMAP(SO, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
 ```
 
-```{r plot-clusters-2}
+```{r plot-clusters-2, fig.align='default', out.width="50%", fig.show='hold'}
 for (ares in resolutions){
     clusterResName <- grep(paste0(DefaultAssay(SO), "_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
     dimplotMetadata(SO, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares)) 
@@ -493,7 +495,7 @@ gc()
 
 \clearpage
 
-# Learning transfert from an Atlas
+# Transfert learning from an Atlas
 
 ## Atlas preparation
 
@@ -595,7 +597,8 @@ ElbowPlot(SO.align, ndims = pca.npcs)
 
 ```{r show-alignedUMAP}
 SO.align <- RunUMAP(SO.align, reduction = "pca", dims = 1:10)
-dimplotMetadata(SO.align, metadata = "model", title = "Gastruloid and atlas cells\nin a shared UMAP embedding")
+dimplotMetadata(SO.align, metadata = "model", title = "Gastruloid and atlas cells\nin a shared UMAP embedding") +
+  RestoreLegend()
 ```
 
 ### Cell identity transfert
@@ -691,7 +694,7 @@ atlas.subset <- SetAssayData(atlas.subset, assay = DefaultAssay(atlas.subset), s
 
 ```{r runPCA-atlas}
 atlas.subset <- RunPCA(atlas.subset, reduction.name = "PCAown", reduction.key = "PCown_", verbose = FALSE)
-ElbowPlot(atlas.subset, ndims = pca.npcs, reduction = "PCAown")
+#ElbowPlot(atlas.subset, ndims = pca.npcs, reduction = "PCAown")
 ```
 
 ```{r garbage-collec8, include=FALSE}
@@ -726,17 +729,23 @@ tmp <- umap(X = Embeddings(atlas.subset[[reduction.use]])[cells.use, 1:10],
             local_connectivity = local_connectivity,
             ret_model=T,
             verbose = F)
-tmp2 <- 0*Embeddings(atlas.subset[[reduction.use]])[,1:3]
-tmp2[cells.use,] <- tmp$embedding
+tmp2 <- 0*Embeddings(atlas.subset[[reduction.use]])[, 1:3]
+tmp2[cells.use, ] <- tmp$embedding
 atlas.subset[["umap200"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP200_")
 ```
 
 UMAP dimension reduction on atlas, with 200 cells per celltype, 300 neighbors
 
 ```{r plot-atlasUMAP-200}
-dimplotMetadata(atlas.subset, "celltype",
-                title = paste0(dataset, " : atlas celltypes\nvisualization reduced to 200 cells per celltype"),
-                reduction = "umap200")
+DimPlot(atlas.subset, pt.size = 1, reduction = "umap200", label = T, cells = sample(cells.use),
+    repel = TRUE, cols = colors.celltype[levels(Idents(atlas.subset))]) +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : atlas celltypes\nvisualization reduced to 200 cells per celltype")) +
+    CenterTitle() +
+    NoAxes()
+# dimplotMetadata(atlas.subset, "celltype",
+#                 title = paste0(dataset, " : atlas celltypes\nvisualization reduced to 200 cells per celltype"),
+#                 reduction = "umap200")
 ```
 
 ```{r save-atlasUMAP-200}
@@ -755,7 +764,7 @@ for(i in unique(atlas.subset$celltype)){
 }
 ```
 
-#### Create random initial coordinates for the integrated object of Atlas and analyzed data
+#### Create random initial coordinates for the integrated object based on the centroid table
 
 ```{r UMAPinit_sharedLayout}
 min_dist <- 8
@@ -825,9 +834,18 @@ tmp <- umap(X = Embeddings(SO.align[[reduction.use]])[cells.use, 1:10],
             local_connectivity = local_connectivity,
             ret_model=T, 
             verbose = F)
-tmp2 <- 0*Embeddings(SO.align[[reduction.use]])[,1:2]
-tmp2[cells.use,] <- tmp$embedding
+tmp2 <- 0 * Embeddings(SO.align[[reduction.use]])[, 1:2]
+tmp2[cells.use, ] <- tmp$embedding
 SO.align[["umapShared2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAPshared2d_", assay = DefaultAssay(SO.align))
+```
+
+```{r plot-SOalign-umapShared2d}
+DimPlot(SO.align, pt.size = 1, reduction = "umapShared2d", label = T, 
+    repel = TRUE, cols = colors.celltype[levels(Idents(atlas.subset))]) + 
+    NoLegend() +
+    ggtitle(paste0(dataset, " : celltype layout\non the integrated object")) +
+    CenterTitle() +
+    NoAxes()
 ```
 
 ```{r save6}
@@ -863,7 +881,7 @@ knitr::opts_chunk$set(
 
 # `r dataset` data analysis after label transfert and initialized UMAP coordinates
 
-```{r import-data}
+```{r import-data, eval=FALSE, echo=FALSE}
 cellnames <- colnames(SO.align[,which(SO.align@meta.data$model == "Gastruloids")])
 
 dim.red <- Embeddings(object = SO.align[, cellnames], reduction = "umapShared2d")
@@ -875,11 +893,12 @@ celltypes <- SO.align@meta.data[cellnames, ]["celltype"]
 SO@meta.data$daily_celltype <- SO@meta.data$celltype
 SO@meta.data$celltype <- NULL
 SO <- AddMetaData(SO, metadata = celltypes, col.name = "celltype")
+cells.use <- colnames(SO)
 ```
 
-```{r extract-dataset, eval=FALSE, echo=FALSE}
-cells.use <- colnames(SO.align)[SO.align$model=="Gastruloids"]
-SO <- SO.align[,cells.use]
+```{r extract-dataset}
+cells.use <- colnames(SO.align)[SO.align$model == "Gastruloids"]
+SO <- SO.align[, cells.use]
 SO@project.name <- dataset
 ```
 
@@ -889,7 +908,7 @@ DefaultAssay(SO) <- "RNA"
 
 ## Analyzed data preprocessing
 
-```{r set-HVG, eval=FALSE, echo=FALSE}
+```{r set-HVG}
 VariableFeatures(SO) <- var.feats.dataset
 ```
 
@@ -897,12 +916,11 @@ VariableFeatures(SO) <- var.feats.dataset
 SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
 ```
 
-<!--- ```{r copy-dataSlot3, eval=!do.scale, echo=!do.scale} -->
-```{r copy-dataSlot3, eval=FALSE, echo=FALSE}
+```{r copy-dataSlot3, eval=!do.scale, echo=!do.scale}
 SO <- SetAssayData(SO, assay = DefaultAssay(SO), slot = "scale.data", new.data = as.matrix(SO@assays[[DefaultAssay(SO)]]@data))
 ```
 
-```{r runPCA3, eval=FALSE, echo=FALSE}
+```{r runPCA3}
 SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
 ```
 
@@ -980,7 +998,7 @@ SO[["umap2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP2d_", assay
 ```
 
 ```{r save7}
-saveRDS(SO, file=file.path(rdsObjects, paste0("06bis_umap_2d3d_", SO@project.name, ".rds")))
+saveRDS(SO, file=file.path(rdsObjects, paste0("06_umap_2d3d_", SO@project.name, ".rds")))
 ```
 
 ```{r garbage-collec11, include=FALSE}
@@ -1019,14 +1037,14 @@ knitr::opts_chunk$set(
 
 ## Clustering (FindNeighbors, FindClusters)
 
-```{r clustering3, eval=FALSE, echo=FALSE}
+```{r clustering3}
 resolutions <- seq(0.6, 1.6, 0.1)
 SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
 SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
 ```
 
 ```{r save8}
-saveRDS(SO, file=file.path(rdsObjects, paste0("06bis_clusters_", SO@project.name, ".rds")))
+saveRDS(SO, file=file.path(rdsObjects, paste0("06_clusters_", SO@project.name, ".rds")))
 ```
 
 ```{r garbage-collec12, include=FALSE}
@@ -1034,17 +1052,10 @@ gc()
 ```
 
 ```{r show-clustering}
-#selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
-#Idents(SO) <- SO@meta.data[[selectedRes]]
-#dimplotMetadata(SO, selectedRes,
-#                reduction = "umap2d")
-for (ares in resolutions){
-    clusterResName <- grep(paste0(DefaultAssay(SO), "_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
-    dimplotMetadata(SO, clusterResName, title = paste0(dataset, " : clusters at resolution ", ares),
-    				reduction = "umap2d") 
-    
-    Sys.sleep(0.5)
-}
+selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
+Idents(SO) <- SO@meta.data[[selectedRes]]
+dimplotMetadata(SO, selectedRes,
+    				reduction = "umap2d")
 ```
 
 ```{r setup15, eval=TRUE, include=FALSE}
@@ -1109,6 +1120,151 @@ write.table(x = topNmarkers, file = file.path(dataset.anFolder, paste0("top", to
 datatable(topNmarkers, rownames = FALSE, filter = "top", options = list(pageLength = 5, scrollX=T))
 ```
 
+```{r setup17, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart8}
+SO <- readRDS(file.path(rdsObjects, paste0("06_clusters_", dataset, ".rds")))
+selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
+markers.sign <- read.table(file.path(dataset.anFolder, paste0("markers_min.pct_logFC_default_", dataset, ".integ.res_", selectedRes, ".csv")), sep = ",", header = T)
+```
+
+```{r setup18, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+# Additional Plots
+
+```{r addPlots-1}
+# Load list of genes of interest
+goi <- read.table(file.path(otherInputs, "genes_of_interest3-scRNAseq.tsv"), sep = ",")
+goiList <- goi$V1
+
+# Parameters
+ntop <- 5
+```
+
+```{r addPlots-2}
+DefaultAssay(SO) <- "RNA"
+topNmarkers <- extract_topn(markers.sign, topn = ntop)
+topNgenes <- unique(topNmarkers$gene)
+```
+
+```{r clean-goiList}
+genesToRemove <- goiList[!(goiList %in% rownames(SO))]
+if (length(genesToRemove) >= 1){
+    cat(paste0("One or more genes of interest are not in the dataset:\n\t",
+                 str_c(genesToRemove, collapse = ", "), "\nThe listed genes are to be removed of the plots"))
+}
+goiList <- goiList[goiList %in% rownames(SO)] # remove the 
+```
+
+## Cluster identity {.tabset .tabset-pills .tabset-fade}
+
+```{r addPlots-3}
+Idents(SO) <- factor(SO@meta.data$integrated_snn_res.1, levels = sort(as.numeric(levels(as.factor(SO@meta.data$integrated_snn_res.1)))))
+```
+
+### DimPlot of the cluster identity
+```{r cluster-dimplot}
+## DimPlot the clusters
+createDimPlot(SO, title = paste0("Clusters at resolution 1\n", SO@project.name))
+```
+
+### DotPlot of the markers on cluster identity
+
+```{r cluster-dotPlot-markers}
+## DotPlot the n-top markers of each cluster
+dotPlotsMarkers(SO, topNgenes, title=paste0("Top ", ntop, " markers of each cluster in clusters"))
+```
+
+### DotPlot of the genes of interest on cluster identity
+
+```{r cluster-dotPlot-goi}
+## DotPlot the genes of interest
+dotPlotsGoi(SO, goiList, title="Genes of interest in clusters")
+```
+
+### FeaturePlot of the markers with cluster labels
+
+```{r cluster-featurePlot-markers}
+## FeaturePlot the genes of interest
+# doFeaturePlot(SO, topNgenes) # single plot on all the data
+doFeaturePlot(SO, topNgenes, split.by="day") # complete data + splitted by day
+```
+
+### FeaturePlot of the genes of interest with cluster labels
+
+```{r cluster-featurePlot-goi}
+## FeaturePlot the genes of interest
+# doFeaturePlot(SO, goiList[10:12]) # single plot on all the data
+doFeaturePlot(SO, goiList, split.by="day") # complete data + splitted by day
+```
+
+## Celltype identity {.tabset .tabset-pills .tabset-fade}
+
+```{r addPlots-4}
+Idents(SO) <- SO$celltype
+```
+
+### DimPlot of the celltype identity
+
+```{r celltype-dimplot}
+## DimPlot the celltype
+createDimPlot(SO, title=paste0("Celltype from atlas transfert identity labels\n", SO@project.name),
+              cols=colors.celltype[levels(Idents(SO))]) +
+    NoLegend()
+```
+
+### DotPlot of the markers on celltype identity
+
+```{r celltype-dotPlot-markers}
+## DotPlot the n-top markers of each celltype
+dotPlotsMarkers(SO, topNgenes, title=paste0("Top ", ntop, " markers of each cluster in celltypes"))
+```
+
+### DotPlot of the genes of interest on celltype identity
+
+```{r celltype-dotPlot-goi}
+## DotPlot the genes of interest
+dotPlotsGoi(SO, goiList, title="Genes of interest in celltypes")
+```
+
+### Celltype annotation concistency
+
+```{r celltype-heatmap-concistency}
+# Celltype annotation moves
+createHeatmapAnn(SO)
+```
+
+## Day identity {.tabset .tabset-pills .tabset-fade}
+
+```{r addPlots-5}
+# Day identity
+Idents(SO) <- factor(SO@meta.data$day, levels = sort(levels(as.factor(SO@meta.data$day)), decreasing = T))
+```
+
+### RidgePlot of the markers on time point identity (day)
+
+```{r day-ridgePlot-marker}
+## RidgePlot on markers
+createRidgePlot(SO, topNgenes)
+```
+
+### RidgePlot of the genes of interest on time point identity (day)
+
+```{r day-ridgePlot-goi}
+createRidgePlot(SO, goiList)
+```
 
 
 

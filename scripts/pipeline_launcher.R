@@ -232,8 +232,8 @@ param.list <- list(
 
 
 
-#basePath <- "/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis" # local server
-basePath <- "/shared/projects/XX/XX" # IFB server
+basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
+#basePath <- "/shared/projects/XX/XX" # IFB server
 
 # multi TP analysis ?
 if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
