@@ -1,40 +1,48 @@
 #!/usr/bin/env Rscript
 
 dotPlotsMarkers <- function(SO, geneList, title=NULL){
+    myPalette <- colorRampPalette(rev(brewer.pal(11, "RdBu")))
+    
     ## DotPlot the n-top markers of each cluster
     nbMarkers <- length(geneList)
-    if (nbMarkers %/% 50 == 0) {
+    if (nbMarkers %/% 40 == 0) {
         DotPlot(SO, features = geneList) +
             RotatedAxis() +
             CenterTitle() +
-            ggtitle(paste0(title, "\n", SO@project.name))
+            ggtitle(paste0(title, "\n", SO@project.name)) +
+            scale_colour_gradientn(colours = myPalette(100))
     } else {
-        nbPlot <- (nbMarkers%/%50)+1
+        nbPlot <- (nbMarkers%/%40)+1
         for (i in seq(1, nbPlot)){
             print(DotPlot(SO, features = geneList[seq(1+(i-1)*(ceiling(nbMarkers/nbPlot)), i*ceiling(nbMarkers/nbPlot))]) +
                       RotatedAxis() +
                       CenterTitle() +
-                      ggtitle(paste0(title, " - ", i, "/", (nbMarkers%/%50)+1, "\n", SO@project.name)))
+                      ggtitle(paste0(title, " - ", i, "/", (nbMarkers%/%40)+1, "\n", SO@project.name)) +
+                      scale_colour_gradientn(colours = myPalette(100)))
         }
     }
 }
 
 
 dotPlotsGoi <- function(SO, geneList, title=NULL){
+    myPalette <- colorRampPalette(rev(brewer.pal(11, "RdBu")))
+    
     ## DotPlot the genes of interest
     nbMarkers <- length(geneList)
-    if (nbMarkers %/% 50 == 0) {
+    if (nbMarkers %/% 40 == 0) {
         DotPlot(SO, features = sort(geneList)) +
             RotatedAxis() +
             CenterTitle() +
-            ggtitle(paste0(title, "\n", SO@project.name))
+            ggtitle(paste0(title, "\n", SO@project.name)) +
+            scale_colour_gradientn(colours = myPalette(100))
     } else {
-        nbPlot <- (nbMarkers%/%50)+1
+        nbPlot <- (nbMarkers%/%40)+1
         for (i in seq(1, nbPlot)){
             print(DotPlot(SO, features = geneList[seq(1+(i-1)*(ceiling(nbMarkers/nbPlot)), i*ceiling(nbMarkers/nbPlot))]) +
                       RotatedAxis() +
                       CenterTitle() +
-                      ggtitle(paste0(title, " - ", i, "/", (nbMarkers%/%50)+1, "\n", SO@project.name)))
+                      ggtitle(paste0(title, " - ", i, "/", (nbMarkers%/%40)+1, "\n", SO@project.name)) +
+                      scale_colour_gradientn(colours = myPalette(100)))
         }
     }
 }
