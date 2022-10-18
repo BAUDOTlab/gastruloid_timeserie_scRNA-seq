@@ -95,21 +95,29 @@ createRidgePlot <- function(SO, genesList){
 }
 
 
-createHeatmapAnn <- function(SO){
+createHeatmapAnn <- function(SO, day = NULL){
+    if (is.null(day)){
+        title <- "Counts of atlas transfert identity labels\nfrom single datasets to combined dataset"
+    } else {
+        title <- paste0("Counts of atlas transfert identity labels from ", day, " dataset\nto the sames cells in the combined dataset")
+    }
     # create heatmap
-    transition <- table(SO@meta.data$orig.celltype, SO@meta.data$celltype)
-    dt <- as.data.frame(transition, row.names = names(SO@meta.data$celltype))
+    Idents(SO) <- SO@meta.data$day
+    transition <- table(SO@meta.data[WhichCells(SO, idents = day), 'orig.celltype'], SO@meta.data[WhichCells(SO, idents = day), 'celltype'])
+    dt <- as.data.frame(transition, row.names = names(SO@meta.data[WhichCells(SO, idents = day), 'celltype']))
+    dt[dt == 0] <- NA
     names(dt) <- c("singleAnnotation", "combineAnnotation", "counts")
     ggplot(dt, aes(singleAnnotation, combineAnnotation, fill=counts)) +
         geom_tile() +
-        geom_text(aes(label = counts), color = "white", size = 3, fontface="bold") +
+        geom_text(aes(label = counts), color=if (is.null(day)) "white" else "black", size = 2.5, fontface="bold") +
+        #scale_color_manual(values = c(NA, "black"), na.value = NA) +
         coord_fixed() +
-        scale_fill_gradient(low = "white", high = "blue") +
+        scale_fill_gradient(low = "white", high = "blue", na.value="white") +
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
         guides(fill = guide_colourbar(barwidth = 0.5,
                                       barheight = 20,
                                       title = "Counts")) +
-        ggtitle("Counts of atlas transfert identity labels\nfrom single datasets to combined dataset") +
+        ggtitle(title) +
         CenterTitle() +
         labs(x = "Celltype annotation on the single datasets", y = paste0("Celltype annotation on the ", SO@project.name, " dataset"))
 }

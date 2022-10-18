@@ -1237,11 +1237,39 @@ dotPlotsMarkers(SO, topNgenes, title=paste0("Top ", ntop, " markers of each clus
 dotPlotsGoi(SO, goiList, title="Genes of interest in celltypes")
 ```
 
-### Celltype annotation concistency
+### Celltype annotation concistency on all data {.tabset .tabset-pills .tabset-fade}
 
 ```{r celltype-heatmap-concistency}
 # Celltype annotation moves
 createHeatmapAnn(SO)
+```
+
+#### Day_04
+
+```{r celltype-heatmap-concistency}
+# Celltype annotation moves
+createHeatmapAnn(SO, day = "Day_04")
+```
+
+#### Day_05
+
+```{r celltype-heatmap-concistency}
+# Celltype annotation moves
+createHeatmapAnn(SO, day = "Day_05")
+```
+
+#### Day_06
+
+```{r celltype-heatmap-concistency}
+# Celltype annotation moves
+createHeatmapAnn(SO, day = "Day_06")
+```
+
+#### Day_11
+
+```{r celltype-heatmap-concistency}
+# Celltype annotation moves
+createHeatmapAnn(SO, day = "Day_11")
 ```
 
 ## Day identity {.tabset .tabset-pills .tabset-fade}
