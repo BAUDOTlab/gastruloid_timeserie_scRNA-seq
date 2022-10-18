@@ -1557,7 +1557,7 @@ topNgenes <- unique(topNmarkers$gene)
 ```{r clean-goiList}
 genesToRemove <- goiList[!(goiList %in% rownames(SO))]
 if (length(genesToRemove) >= 1){
-    cat(paste0("One or more genes of interest are not in the dataset:\n\t",
+    cat(paste0("One or more genes of interest are not in the dataset (maybe because of the case):\n\t",
                  str_c(genesToRemove, collapse = ", "), "\nThe listed genes are to be removed of the plots"))
 }
 goiList <- goiList[goiList %in% rownames(SO)] # remove the 
@@ -1593,22 +1593,20 @@ dotPlotsGoi(SO, goiList, title="Genes of interest in clusters")
 
 ```{r cluster-featurePlot-markers}
 ## FeaturePlot the genes of interest
-# doFeaturePlot(SO, topNgenes) # single plot on all the data
-doFeaturePlot(SO, topNgenes) # complete data + splitted by day
+doFeaturePlot(SO, topNgenes)
 ```
 
 ### FeaturePlot of the genes of interest with cluster labels
 
 ```{r cluster-featurePlot-goi}
 ## FeaturePlot the genes of interest
-# doFeaturePlot(SO, goiList[10:12]) # single plot on all the data
-doFeaturePlot(SO, goiList) # complete data + splitted by day
+doFeaturePlot(SO, goiList)
 ```
 
 ## Celltype identity {.tabset .tabset-pills .tabset-fade}
 
 ```{r addPlots-4}
-Idents(SO) <- SO$celltype
+Idents(SO) <- factor(SO@meta.data$celltype, levels = sort(levels(as.factor(SO@meta.data$celltype))))
 ```
 
 ### DimPlot of the celltype identity

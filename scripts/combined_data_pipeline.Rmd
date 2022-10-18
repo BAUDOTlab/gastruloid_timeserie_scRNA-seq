@@ -1198,7 +1198,6 @@ dotPlotsGoi(SO, goiList, title="Genes of interest in clusters")
 
 ```{r cluster-featurePlot-markers}
 ## FeaturePlot the genes of interest
-# doFeaturePlot(SO, topNgenes) # single plot on all the data
 doFeaturePlot(SO, topNgenes, split.by="day") # complete data + splitted by day
 ```
 
@@ -1206,14 +1205,13 @@ doFeaturePlot(SO, topNgenes, split.by="day") # complete data + splitted by day
 
 ```{r cluster-featurePlot-goi}
 ## FeaturePlot the genes of interest
-# doFeaturePlot(SO, goiList[10:12]) # single plot on all the data
 doFeaturePlot(SO, goiList, split.by="day") # complete data + splitted by day
 ```
 
 ## Celltype identity {.tabset .tabset-pills .tabset-fade}
 
 ```{r addPlots-4}
-Idents(SO) <- SO$celltype
+Idents(SO) <- factor(SO@meta.data$celltype, levels = sort(levels(as.factor(SO@meta.data$celltype))))
 ```
 
 ### DimPlot of the celltype identity
