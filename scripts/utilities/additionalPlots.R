@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 dotPlotsMarkers <- function(SO, geneList, title=NULL){
-    myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+    myPalette <- colorRampPalette(rev(brewer.pal(11, "RdBu")))
     
     ## DotPlot the n-top markers of each cluster
     nbMarkers <- length(geneList)
@@ -25,7 +25,7 @@ dotPlotsMarkers <- function(SO, geneList, title=NULL){
 
 
 dotPlotsGoi <- function(SO, geneList, title=NULL){
-    myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+    myPalette <- colorRampPalette(rev(brewer.pal(11, "RdBu")))
     
     ## DotPlot the genes of interest
     nbMarkers <- length(geneList)
