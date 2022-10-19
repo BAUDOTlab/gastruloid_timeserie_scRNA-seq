@@ -1,0 +1,40 @@
+# R packages that are not available via conda
+
+First, activate the environment, then install the packages
+
+## DoubletFinder
+### The source of the tool
+
+https://github.com/chris-mcginnis-ucsf/DoubletFinder
+
+### Installation
+
+In a R buffer:
+
+```{r}
+library(devtools)
+remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
+```
+
+
+## leidenalg python package
+
+In command line, enter:
+$ pip install leidenalg
+
+
+
+## Harmony
+
+### The source of the tool
+
+https://github.com/immunogenomics/harmony
+
+### Installation
+
+In a R buffer:
+
+```{r}
+library(devtools)
+install_github("immunogenomics/harmony")
+```
