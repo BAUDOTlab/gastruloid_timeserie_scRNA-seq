@@ -779,34 +779,34 @@ ggplot(rbind(size_track1, size_track2, size_track3), aes(x = Analysis_step_name,
   ylab('Number of cells')
 ```
 
-```{r save2}
-saveRDS(SOsing, file=file.path(rdsObjects, paste0("02_removedDoublets_", dataset, ".rds")))
-```
+<!-- ```{r save2} -->
+<!-- saveRDS(SOsing, file=file.path(rdsObjects, paste0("02_removedDoublets_", dataset, ".rds"))) -->
+<!-- ``` -->
 
 ```{r garbage-collec2, include=FALSE}
 rm(SO)
 gc()
 ```
 
-```{r setup5, eval=TRUE, include=FALSE}
-knitr::opts_chunk$set(
-    # code evaluation
-    eval = FALSE,
-    echo = FALSE
-)
-```
+<!-- ```{r setup5, eval=TRUE, include=FALSE} -->
+<!-- knitr::opts_chunk$set( -->
+<!--     # code evaluation -->
+<!--     eval = FALSE, -->
+<!--     echo = FALSE -->
+<!-- ) -->
+<!-- ``` -->
 
-```{r restart2}
-SOsing <- readRDS(file.path(rdsObjects, paste0("02_removedDoublets_", dataset, ".rds")))
-```
+<!-- ```{r restart2} -->
+<!-- SOsing <- readRDS(file.path(rdsObjects, paste0("02_removedDoublets_", dataset, ".rds"))) -->
+<!-- ``` -->
 
-```{r setup6, eval=TRUE, include=FALSE}
-knitr::opts_chunk$set(
-    # code evaluation
-    eval = TRUE,
-    echo = TRUE
-)
-```
+<!-- ```{r setup6, eval=TRUE, include=FALSE} -->
+<!-- knitr::opts_chunk$set( -->
+<!--     # code evaluation -->
+<!--     eval = TRUE, -->
+<!--     echo = TRUE -->
+<!-- ) -->
+<!-- ``` -->
 
 # Preprocessing workflow after doublets removal
 
@@ -876,29 +876,29 @@ for (ares in resolutions){
 }
 ```
 
-```{r save4}
-saveRDS(SOsing, file=file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
-```
+<!-- ```{r save4} -->
+<!-- saveRDS(SOsing, file=file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds"))) -->
+<!-- ``` -->
 
-```{r setup7, eval=TRUE, include=FALSE}
-knitr::opts_chunk$set(
-    # code evaluation
-    eval = FALSE,
-    echo = FALSE
-)
-```
+<!-- ```{r setup7, eval=TRUE, include=FALSE} -->
+<!-- knitr::opts_chunk$set( -->
+<!--     # code evaluation -->
+<!--     eval = FALSE, -->
+<!--     echo = FALSE -->
+<!-- ) -->
+<!-- ``` -->
 
-```{r restart3}
-SOsing <- readRDS(file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
-```
+<!-- ```{r restart3} -->
+<!-- SOsing <- readRDS(file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds"))) -->
+<!-- ``` -->
 
-```{r setup8, eval=TRUE, include=FALSE}
-knitr::opts_chunk$set(
-    # code evaluation
-    eval = TRUE,
-    echo = TRUE
-)
-```
+<!-- ```{r setup8, eval=TRUE, include=FALSE} -->
+<!-- knitr::opts_chunk$set( -->
+<!--     # code evaluation -->
+<!--     eval = TRUE, -->
+<!--     echo = TRUE -->
+<!-- ) -->
+<!-- ``` -->
 
 ```{r garbage-collec3, include=FALSE}
 gc()
@@ -1056,9 +1056,9 @@ SO.align$aligned.celltype <- NULL
 Idents(SO.align) <- SO.align$celltype
 ```
 
-```{r save5}
-saveRDS(SO.align, file=file.path(rdsObjects, paste0("04_celltypeFromAtlas_", SO.align@project.name, ".rds")))
-```
+<!-- ```{r save5} -->
+<!-- saveRDS(SO.align, file=file.path(rdsObjects, paste0("04_celltypeFromAtlas_", SO.align@project.name, ".rds"))) -->
+<!-- ``` -->
 
 ```{r garbage-collec7, include=FALSE}
 rm(centroids, cells.tmp, tmp, idents.tmp, dist)
@@ -1069,27 +1069,27 @@ gc()
 dimplotMetadata(SO.align, metadata = "celltype", title = "Celltypes on the combined object\nGastruloids and atlas cells")
 ```
 
-```{r setup9, eval=TRUE, include=FALSE}
-knitr::opts_chunk$set(
-    # code evaluation
-    eval = FALSE,
-    echo = FALSE
-)
-```
+<!-- ```{r setup9, eval=TRUE, include=FALSE} -->
+<!-- knitr::opts_chunk$set( -->
+<!--     # code evaluation -->
+<!--     eval = FALSE, -->
+<!--     echo = FALSE -->
+<!-- ) -->
+<!-- ``` -->
 
-```{r restart4}
-SO.align <- readRDS(file.path(rdsObjects, paste0("04_celltypeFromAtlas_", dataset,"_with_atlas.rds")))
-atlas.subset <- readRDS(file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
-var.feats.dataset <- readRDS(file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
-```
+<!-- ```{r restart4} -->
+<!-- SO.align <- readRDS(file.path(rdsObjects, paste0("04_celltypeFromAtlas_", dataset,"_with_atlas.rds"))) -->
+<!-- atlas.subset <- readRDS(file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds"))) -->
+<!-- var.feats.dataset <- readRDS(file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds"))) -->
+<!-- ``` -->
 
-```{r setup10, eval=TRUE, include=FALSE}
-knitr::opts_chunk$set(
-    # code evaluation
-    eval = TRUE,
-    echo = TRUE
-)
-```
+<!-- ```{r setup10, eval=TRUE, include=FALSE} -->
+<!-- knitr::opts_chunk$set( -->
+<!--     # code evaluation -->
+<!--     eval = TRUE, -->
+<!--     echo = TRUE -->
+<!-- ) -->
+<!-- ``` -->
 
 
 ### Global orientation of the UMAP plots
@@ -1161,9 +1161,9 @@ DimPlot(atlas.subset, pt.size = 1, reduction = "umap200", label = T, cells = sam
 #                 reduction = "umap200")
 ```
 
-```{r save-atlasUMAP-200}
-saveRDS(atlas.subset, file=file.path(rdsObjects, paste0("05_UMAP_atlas_subset200cells_", dataset, ".rds")))
-```
+<!-- ```{r save-atlasUMAP-200} -->
+<!-- saveRDS(atlas.subset, file=file.path(rdsObjects, paste0("05_UMAP_atlas_subset200cells_", dataset, ".rds"))) -->
+<!-- ``` -->
 
 #### Create a centroid table on Atlas cell types in UMAP200 space
 
@@ -1438,7 +1438,7 @@ SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, rando
 ```
 
 ```{r save8}
-saveRDS(SO, file=file.path(rdsObjects, paste0("06_clusters_", SO@project.name, ".rds")))
+saveRDS(SO, file=file.path(rdsObjects, paste0("07_clusters_", SO@project.name, ".rds")))
 ```
 
 ```{r garbage-collec12, include=FALSE}
