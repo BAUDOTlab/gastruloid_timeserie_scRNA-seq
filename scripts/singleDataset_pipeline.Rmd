@@ -82,7 +82,6 @@ title: |
   | Protocole 1:
   | single scRNAseq data analysis
   | `r params$dataset`
-  | 
 ---
 
 ```{r setup1, eval=TRUE, include=FALSE}
