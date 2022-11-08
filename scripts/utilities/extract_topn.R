@@ -9,13 +9,15 @@ extract_topn <- function(markers, topn=20){
         group_by(cluster) %>%
         top_n(n = topn,
               wt = avg_log2FC)
-    topnNeg <- markers %>%
-        group_by(cluster) %>%
-        top_n(n = -topn,
-              wt = avg_log2FC)
+    # topnNeg <- markers %>%
+    #     group_by(cluster) %>%
+    #     top_n(n = -topn,
+    #           wt = avg_log2FC)
               
-    topnMarkers <- bind_rows(topnPos, topnNeg)
-    topnMarkers <-  topnMarkers %>%
+    # topnMarkers <- bind_rows(topnPos, topnNeg)
+    # topnMarkers <-  topnMarkers %>%
+    #     dplyr::arrange(cluster, p_val_adj)
+    topnMarkers <-  topnPos %>%
         dplyr::arrange(cluster, p_val_adj)
     
     return(topnMarkers)
