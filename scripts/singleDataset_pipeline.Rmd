@@ -360,7 +360,7 @@ SO[["percent.mt"]] <- PercentageFeatureSet(SO, pattern="^mt-")      # CHANGE THE
 ```{r plot-mito, fig.align='default', out.width='50%', fig.show='hold'}
 plot1 <- VlnPlot(SO, features = c("percent.mt"), ncol = 3) +
   geom_hline(aes(yintercept = mito.high), color="blue", size=1.5) +
-    geom_hline(aes(yintercept = mito.low), color="orange", size=1.5) +
+    #geom_hline(aes(yintercept = mito.low), color="orange", size=1.5) +
     ggtitle("Mitochondrial expression\npercentage") +
     theme(axis.title.x = element_blank(),
           axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
@@ -368,7 +368,7 @@ plot1 <- VlnPlot(SO, features = c("percent.mt"), ncol = 3) +
 
 plot2 <- VlnPlot(SO, features = c("percent.mt"), ncol = 3) +
     geom_hline(aes(yintercept = mito.high), color="blue", size=1.2) +
-    geom_hline(aes(yintercept = mito.low), color="orange", size=1.2) +
+    #geom_hline(aes(yintercept = mito.low), color="orange", size=1.2) +
     ylim(0, 12) +
     ggtitle("Mitochondrial expression\npercentage - zoom in") +
     theme(axis.title.x = element_blank(),
@@ -387,7 +387,7 @@ SO[["percent.ribo"]] <- PercentageFeatureSet(SO, pattern="^Rp[sl]")   # SEE IF A
 
 ```{r plot-ribo, fig.align = 'center'}
 VlnPlot(SO, features = c("percent.ribo"), ncol = 3) +
-  geom_hline(aes(yintercept = ribo.high), color="blue", size=1.5) +
+  #geom_hline(aes(yintercept = ribo.high), color="blue", size=1.5) +
   geom_hline(aes(yintercept = ribo.low), color="orange", size=1.5) +
     ggtitle("Ribosomal expression\npercentage") +
     theme(axis.title.x = element_blank(),
@@ -478,9 +478,12 @@ ggplot(SO@meta.data, aes(nCount_RNA, nFeature_RNA, colour = percent.mt)) +
 ```
 
 ```{r filterQC}
+# SO <- subset(SO,
+#              features=which(df$Nbr_of_cells > min.cells),
+#              subset = percent.mt > mito.low & percent.mt < mito.high & nCount_RNA > min.counts & nCount_RNA < max.counts & nFeature_RNA > min.feat)
 SO <- subset(SO,
              features=which(df$Nbr_of_cells > min.cells),
-             subset = percent.mt > mito.low & percent.mt < mito.high & nCount_RNA > min.counts & nCount_RNA < max.counts & nFeature_RNA > min.feat)
+             subset = percent.mt < mito.high & percent.ribo > ribo.low & nCount_RNA > min.counts & nCount_RNA < max.counts & nFeature_RNA > min.feat)
 ```
 
 ```{r size-QCfiltering}
