@@ -550,7 +550,7 @@ t(as.data.frame(table(SO@assays[["RNA"]]@meta.features$mvp.variable))) %>%
 ```
 
 ```{r scale1}
-SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
+SO <- ScaleData(SO, features=rownames(SO), do.scale=TRUE, verbose=FALSE) # do.scale=TRUE to make DoubletFinder working
 ```
 
 ```{r runPCA1, results='hold'}
@@ -834,20 +834,11 @@ t(as.data.frame(table(SOsing@assays[["RNA"]]@meta.features$mvp.variable))) %>%
 ```
  
  
-```{r save3-varFeat-dataset}
+```{r save3-varFeat-dataset, results='hold'}
 var.feats.dataset <- VariableFeatures(SOsing)
 saveRDS(var.feats.dataset, file=file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
-```
 
-```{r scale2, eval=do.scale, echo=do.scale}
-SOsing <- ScaleData(SOsing, features=rownames(SOsing), verbose=FALSE)
-```
-
-```{r copy-dataSlot2, eval=!do.scale, echo=!do.scale}
-SOsing <- SetAssayData(SOsing, assay = "RNA", slot = "scale.data", new.data = as.matrix(SOsing@assays$RNA@data))
-```
-
-```{r runPCA2, results='hold'}
+SOsing <- ScaleData(SOsing, features=rownames(SOsing), do.scale=do.scale, verbose=FALSE)
 SOsing <- RunPCA(SOsing, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
 ```
 
@@ -995,18 +986,8 @@ SO.align <- IntegrateData(anchorset = anchors)
 
 SO.align@project.name <- paste0(dataset, "_with_atlas")
 DefaultAssay(SO.align) <- "integrated"
-```
 
-```{r scale-aligned, eval=do.scale, echo=do.scale}
-# Run the standard workflow for visualization and clustering
-SO.align <- ScaleData(SO.align, assay = DefaultAssay(SO.align), verbose = FALSE)
-```
-
-```{r copy-dataSlot-aligned, eval=!do.scale, echo=!do.scale}
-SO.align <- SetAssayData(SO.align, assay = DefaultAssay(SO.align), slot = "scale.data", new.data = as.matrix(SO.align@assays[[DefaultAssay(SO.align)]]@data))
-```
-
-```{r dimReduction-aligned}
+SO.align <- ScaleData(SO.align, assay = DefaultAssay(SO.align), do.scale=do.scale, verbose = FALSE)
 SO.align <- RunPCA(SO.align, npcs = pca.npcs, verbose = FALSE)
 ElbowPlot(SO.align, ndims = pca.npcs)
 ```
@@ -1099,21 +1080,10 @@ dimplotMetadata(SO.align, metadata = "celltype", title = "Celltypes on the combi
 
 #### Atlas data preprocessing steps (ScaleData, RunPCA)
 
-```{r scale-atlas, eval=do.scale, echo=do.scale}
+```{r scale-atlas}
 # Run the standard workflow for visualization and clustering
-atlas.subset <- atlas.subset(SO.align, assay = DefaultAssay(atlas.subset), verbose = FALSE)
-```
-
-```{r copy-dataSlot-atlas, eval=!do.scale, echo=!do.scale}
-atlas.subset <- SetAssayData(atlas.subset, assay = DefaultAssay(atlas.subset), slot = "scale.data", new.data = as.matrix(atlas.subset@assays$RNA@data[VariableFeatures(atlas.subset),]))
-```
-
-```{r runPCA-atlas}
+atlas.subset <- ScaleData(SO.align, assay = DefaultAssay(atlas.subset), do.scale=do.scale, verbose = FALSE)
 atlas.subset <- RunPCA(atlas.subset, reduction.name = "PCAown", reduction.key = "PCown_", verbose = FALSE)
-#ElbowPlot(atlas.subset, ndims = pca.npcs, reduction = "PCAown")
-```
-
-```{r garbage-collec8, include=FALSE}
 gc()
 ```
 
@@ -1308,19 +1278,9 @@ DefaultAssay(SO) <- "RNA"
 
 ## Analyzed data preprocessing
 
-```{r set-HVG}
+```{r set-HVG, results='hold'}
 VariableFeatures(SO) <- var.feats.dataset
-```
-
-```{r scale3, eval=do.scale, echo=do.scale}
-SO <- ScaleData(SO, features=rownames(SO), verbose=FALSE)
-```
-
-```{r copy-dataSlot3, eval=!do.scale, echo=!do.scale}
-SO <- SetAssayData(SO, assay = "RNA", slot = "scale.data", new.data = as.matrix(SO@assays$RNA@data))
-```
-
-```{r runPCA3}
+SO <- ScaleData(SO, features=rownames(SO), do.scale=do.scale, verbose=FALSE)
 SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
 ```
 
