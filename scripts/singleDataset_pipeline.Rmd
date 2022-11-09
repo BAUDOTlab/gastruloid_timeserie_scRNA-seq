@@ -149,6 +149,7 @@ source("./utilities/dimplotMetadata.R")
 source("./utilities/extract_topn.R")
 source("./utilities/add_dominantMetadata.R")
 source("./utilities/additionalPlots.R")
+source("./utilities/00_generalDeps.R")
 #source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/FeatureViolinplot.R")
 #source("/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis/scripts/lionel_codes/Violin_dotplot.R")
 ```
@@ -184,8 +185,8 @@ Set either input and output directories.
 
 ```{r base-path}
 #basePath <- "/home/celine/temp2"
-#basePath <- "/mnt/DATA_4TB/projects/XX/analysis/seuratAnalysis" # local server
-basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
+basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
+#basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
 ```
 
 ### Input directories
@@ -1470,7 +1471,7 @@ topNmarkers <- left_join(topNmarkers, dominantDays, by='cluster')
 ```
 
 ```{r saveTopNmarkers}
-write.table(x = topNmarkers, file = file.path(dataset.anFolder, paste0("top", top.markers, "markers.csv")), sep = ",", row.names = F, col.names = T)
+write.table(x = topNmarkers, file = file.path(dataset.anFolder, paste0("top_", top.markers, "_markers.csv")), sep = ",", row.names = F, col.names = T)
 ```
 
 ```{r displayTable}
@@ -1551,12 +1552,46 @@ dotPlotsMarkers(SO, topNgenes, title=paste0("Top ", ntop, " markers of each clus
 dotPlotsGoi(SO, goiList, title="Genes of interest in clusters")
 ```
 
-### FeaturePlot of the markers with cluster labels
+### FeaturePlot of the markers with cluster labels  {.tabset .tabset-pills .tabset-fade}
 
-```{r cluster-featurePlot-markers}
-## FeaturePlot the genes of interest
-doFeaturePlot(SO, topNgenes)
+```{r results='asis', out.width='20%', fig.align='default'}
+# with courtesy of Lionel Spinelli and Romain Fenouil
+topMarkers = by( markers.sign, markers.sign[["cluster"]], function(x)
+{
+  # Filter markers based on adjusted PValue
+  x = x[ x[["p_val_adj"]] < 0.005, , drop = FALSE];
+  # Sort by decreasing logFC
+  x = x[ order(abs(x[["avg_log2FC"]]), decreasing = TRUE), , drop = FALSE ]
+  # Return top ones
+  return( if(is.null(  top.markers )) x else head( x, n =  top.markers ));
+});
+
+clustersColor <- setNames(hue_pal()(length(names(topMarkers))), names(topMarkers))
+
+invisible( lapply( names( topMarkers), function(clusterName)
+{
+  cat("##### Cluster <span style='border-radius: 3px; border: 3px solid ", clustersColor[clusterName], "; padding:0px 2px'>", clusterName, "</span>\n");
+
+  # Highlight cells of current cluster on a dimreduc plot
+  highlightClusterPlot(clusterName, seuratObject = SO, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"));
+
+  # Plots expression on projected cells
+  invisible( lapply( topMarkers[[clusterName]][["gene"]], function(featureName)
+    {
+      print( FeaturePlot( SO, features = featureName, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"), order = TRUE) +
+               theme( axis.title.x = element_blank(),
+                      axis.title.y = element_blank(),
+                      legend.position = "none"));
+    }));
+
+  cat(" \n \n"); # Required for '.tabset'
+}))
 ```
+
+<!-- ```{r cluster-featurePlot-markers} -->
+<!-- ## FeaturePlot the genes of interest -->
+<!-- doFeaturePlot(SO, topNgenes) -->
+<!-- ``` -->
 
 ### FeaturePlot of the genes of interest with cluster labels
 
