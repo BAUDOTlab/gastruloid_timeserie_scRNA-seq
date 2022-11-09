@@ -871,29 +871,29 @@ for (ares in resolutions){
 }
 ```
 
-<!-- ```{r save4} -->
-<!-- saveRDS(SOsing, file=file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds"))) -->
-<!-- ``` -->
+```{r save4}
+saveRDS(SOsing, file=file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
+```
 
-<!-- ```{r setup7, eval=TRUE, include=FALSE} -->
-<!-- knitr::opts_chunk$set( -->
-<!--     # code evaluation -->
-<!--     eval = FALSE, -->
-<!--     echo = FALSE -->
-<!-- ) -->
-<!-- ``` -->
+```{r setup7, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
 
-<!-- ```{r restart3} -->
-<!-- SOsing <- readRDS(file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds"))) -->
-<!-- ``` -->
+```{r restart3}
+SOsing <- readRDS(file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
+```
 
-<!-- ```{r setup8, eval=TRUE, include=FALSE} -->
-<!-- knitr::opts_chunk$set( -->
-<!--     # code evaluation -->
-<!--     eval = TRUE, -->
-<!--     echo = TRUE -->
-<!-- ) -->
-<!-- ``` -->
+```{r setup8, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
 
 ```{r garbage-collec3, include=FALSE}
 gc()
