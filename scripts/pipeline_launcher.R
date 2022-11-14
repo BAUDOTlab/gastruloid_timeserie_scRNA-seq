@@ -164,7 +164,7 @@ if (is.na(opt$input_dataset)){
 
 # norm_method
 if (opt$norm_method == "SCTransform"){
-    cat("This method is not yet implemented, please use 'LogNormalize'
+    cat("The SCTransform method is not yet implemented, please use 'LogNormalize'
         ")
     quit(status = 1)
 } else if (opt$norm_method != "LogNormalize"){
@@ -231,7 +231,6 @@ param.list <- list(
 )
 
 
-
 basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
 #basePath <- "/shared/projects/XX/XX" # IFB server
 
@@ -280,12 +279,13 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
             (!opt$new_analysis && length(grep(opt$analysis_name, list.dirs(basePath, full.names = FALSE, recursive = FALSE), value = TRUE)) == 1)){
             # YES and NO, NO and YES
             
-            # select pipeline to run according the analysis_name
-            if (opt$analysis_name == "removedDoublets"){
-                rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
-            } else if (opt$analysis_name == "withoutDoublet_subset"){
-                rmarkdown::render("no_df_subset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
-            }
+            rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
+            # # select pipeline to run according the analysis_name
+            # if (opt$analysis_name == "removedDoublets"){
+            #     rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
+            # } else if (opt$analysis_name == "withoutDoublet_subset"){
+            #     rmarkdown::render("no_df_subset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
+            # }
         } else {
             # incompatible options like:
             # new analysis with a pre-existing analysis name OR
