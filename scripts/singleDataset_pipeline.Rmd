@@ -123,7 +123,7 @@ library(Seurat)
 library(ggplot2)
 library(reticulate)
 library(scmap)
-#library(RColorBrewer)
+library(RColorBrewer)
 library(DoubletFinder)
 library(stringr)
 library(kableExtra)
@@ -481,7 +481,7 @@ ggplot(df, aes(x = Nbr_of_cells)) +
   geom_text(aes(x=min.cells,label = paste0("\n", min.cells), y=1800, hjust = 1))
 ```
 
-Based on this threshold, 'r length(which(df$Nbr_of_cells <= min.cells))' features
+Based on this threshold, `r length(which(df$Nbr_of_cells <= min.cells))` features
 are removed for the downstream analysis.
 
 ## Quality control application
@@ -510,6 +510,8 @@ invisible(apply(combn(qc_param, 2), 2, function(x){
     scale_color_manual( values = c( "TRUE" = "#FF0000AA", "FALSE" = "#44444444")))
 }))
 ```
+
+The cells deleted by application of all the cutoffs are `r dim(SO@meta.data[SO@meta.data$percent.mito > mito.high | SO@meta.data$percent.ribo < ribo.low | SO@meta.data$nCount_RNA < min.counts | SO@meta.data$nCount_RNA > max.counts | SO@meta.data$nFeature_RNA < min.feat,])[1]`
 
 ```{r filterQC}
 # SO <- subset(SO,
@@ -825,13 +827,13 @@ rm(SO)
 gc()
 ```
 
-<!-- ```{r setup5, eval=TRUE, include=FALSE} -->
-<!-- knitr::opts_chunk$set( -->
-<!--     # code evaluation -->
-<!--     eval = FALSE, -->
-<!--     echo = FALSE -->
-<!-- ) -->
-<!-- ``` -->
+```{r setup5, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
 
 <!-- ```{r restart2} -->
 <!-- SOsing <- readRDS(file.path(rdsObjects, paste0("02_removedDoublets_", dataset, ".rds"))) -->
@@ -851,21 +853,21 @@ gc()
 SOsing <- FindVariableFeatures(SOsing, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
 ```
 
-```{r hvg-mvp2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-SOsing <- FindVariableFeatures(SOsing, selection.method = hvg.meth, verbose=FALSE)
-head(SOsing@assays[["RNA"]]@meta.features) %>%
-  knitr::kable(caption = "Example of HVG selection output") %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
-```
+<!-- ```{r hvg-mvp2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"} -->
+<!-- SOsing <- FindVariableFeatures(SOsing, selection.method = hvg.meth, verbose=FALSE) -->
+<!-- head(SOsing@assays[["RNA"]]@meta.features) %>% -->
+<!--   knitr::kable(caption = "Example of HVG selection output") %>% -->
+<!--   kable_styling(bootstrap_options = c("striped", "hover")) -->
+<!-- ``` -->
 
-```{r show-HVGnum2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-t(as.data.frame(table(SOsing@assays[["RNA"]]@meta.features$mvp.variable))) %>%
-  knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
-               row.names = FALSE,
-               escape = F,
-               align = "cc") %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
-```
+<!-- ```{r show-HVGnum2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"} -->
+<!-- t(as.data.frame(table(SOsing@assays[["RNA"]]@meta.features$mvp.variable))) %>% -->
+<!--   knitr::kable(caption = "Number of features selected as highly variable genes (HVG)", -->
+<!--                row.names = FALSE, -->
+<!--                escape = F, -->
+<!--                align = "cc") %>% -->
+<!--   kable_styling(bootstrap_options = c("striped", "hover")) -->
+<!-- ``` -->
  
  
 ```{r save3-varFeat-dataset, results='hold'}
@@ -923,8 +925,8 @@ SOsing <- readRDS(file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".r
 ```{r setup8, eval=TRUE, include=FALSE}
 knitr::opts_chunk$set(
     # code evaluation
-    eval = TRUE,
-    echo = TRUE
+    eval = FALSE,
+    echo = FALSE
 )
 ```
 
@@ -999,19 +1001,19 @@ atlas.subset <- FindVariableFeatures(atlas.subset, nfeatures=hvg.num, selection.
 saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
 ```
 
-```{r hvg-mvp-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp", results='asis'}
-atlas.subset <- FindVariableFeatures(atlas.subset, selection.method = hvg.meth, verbose=FALSE)
-saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
-```
+<!-- ```{r hvg-mvp-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp", results='asis'} -->
+<!-- atlas.subset <- FindVariableFeatures(atlas.subset, selection.method = hvg.meth, verbose=FALSE) -->
+<!-- saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds"))) -->
+<!-- ``` -->
 
-```{r show-HVGnum-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-t(as.data.frame(table(atlas.subset@assays[["RNA"]]@meta.features$mvp.variable))) %>%
-  knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
-               row.names = FALSE,
-               escape = F,
-               align = "cc") %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
-```
+<!-- ```{r show-HVGnum-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"} -->
+<!-- t(as.data.frame(table(atlas.subset@assays[["RNA"]]@meta.features$mvp.variable))) %>% -->
+<!--   knitr::kable(caption = "Number of features selected as highly variable genes (HVG)", -->
+<!--                row.names = FALSE, -->
+<!--                escape = F, -->
+<!--                align = "cc") %>% -->
+<!--   kable_styling(bootstrap_options = c("striped", "hover")) -->
+<!-- ``` -->
 
 ```{r integration-with-atlas}
 features <- SelectIntegrationFeatures(object.list = list(SOsing, atlas.subset))
@@ -1293,8 +1295,8 @@ var.feats.dataset <- readRDS(file=file.path(rdsObjects, paste0("var.feats.datase
 ```{r setup12, eval=TRUE, include=FALSE}
 knitr::opts_chunk$set(
     # code evaluation
-    eval = TRUE,
-    echo = TRUE
+    eval = FALSE,
+    echo = FALSE
 )
 ```
 
@@ -1421,8 +1423,8 @@ SO <- readRDS(file.path(rdsObjects, paste0("06_umap_2d3d_", SO@project.name, ".r
 ```{r setup14, eval=TRUE, include=FALSE}
 knitr::opts_chunk$set(
     # code evaluation
-    eval = TRUE,
-    echo = TRUE
+    eval = FALSE,
+    echo = FALSE
 )
 ```
 
@@ -1458,14 +1460,14 @@ knitr::opts_chunk$set(
 ```
 
 ```{r restart7}
-SO <- readRDS(file.path(rdsObjects, paste0("06_clusters_", dataset, ".rds")))
+SO <- readRDS(file.path(rdsObjects, paste0("07_clusters_", dataset, ".rds")))
 ```
 
 ```{r setup16, eval=TRUE, include=FALSE}
 knitr::opts_chunk$set(
     # code evaluation
-    eval = TRUE,
-    echo = TRUE
+    eval = FALSE,
+    echo = FALSE
 )
 ```
 
@@ -1520,7 +1522,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r restart8}
-SO <- readRDS(file.path(rdsObjects, paste0("06_clusters_", dataset, ".rds")))
+SO <- readRDS(file.path(rdsObjects, paste0("07_clusters_", dataset, ".rds")))
 selectedRes <- grep(paste0(DefaultAssay(SO), ".*res.", res, "$"), colnames(SO@meta.data), value=TRUE)
 markers.sign <- read.table(file.path(dataset.anFolder, paste0("markers_min.pct_logFC_default_", dataset, ".integ.res_", selectedRes, ".csv")), sep = ",", header = T)
 ```
@@ -1528,8 +1530,8 @@ markers.sign <- read.table(file.path(dataset.anFolder, paste0("markers_min.pct_l
 ```{r setup18, eval=TRUE, include=FALSE}
 knitr::opts_chunk$set(
     # code evaluation
-    eval = TRUE,
-    echo = TRUE
+    eval = FALSE,
+    echo = FALSE
 )
 ```
 
