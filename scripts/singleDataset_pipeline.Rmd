@@ -128,8 +128,6 @@ title: |
 
 
 
-
-
 ```{r setup1, eval=TRUE, include=FALSE}
 options(knitr.purl.inline = TRUE)
 knitr::opts_chunk$set(
@@ -319,6 +317,7 @@ Load table to in which colors are defined for the labels used in the analysis.
 ```{r load_colorTables}
 colors.table <- read.table(file=file.path(inputTables.folder, "ClusterColors.tsv"), sep="\t", header=T, comment.char="", as.is=T)
 colors.celltype <- setNames(colors.table$blind_friendly[!is.na(colors.table$transferred_identity)], colors.table$transferred_identity[!is.na(colors.table$transferred_identity)])
+
 colors.stage <- setNames(c("#bb573b", "#ac9d3e", "#5aaf6a", "#7564b9", "#b94c84", "#ba4b7d", "#90b03d", "#60a756", "#45c097", "#5e8bd5", "#6d71d8", "#573585", "#bd80d5", "#b853a2", "#ba4b7d"), c("Day_04", "Day_05", "Day_06", "Day_07", "Day_10", "Day_11", "E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5"))
 ```
 
@@ -355,7 +354,7 @@ SO$model <- "Gastruloids"
 ```{r show-metaData}
 data.frame(head(SO@meta.data)) %>%
   knitr::kable(align = "lrrrrrr",
-               caption = paste0("First lines of ", dataset, " metadata table")) %>% 
+               caption = paste0("6 first lines of the ", dataset, " metadata table")) %>% 
   kable_styling(bootstrap_options = c("striped", "hover")) %>%
   scroll_box(width = "100%", height = "300px")
 ```
@@ -395,106 +394,119 @@ colnames(size_track1) <- c('Nbr_of_features', 'Nbr_of_cells', 'Analysis_step_nam
 
 # Quality control
 
-## Percentage of mitochondrial reads & cutoffs
+## Percentage of mitochondrial reads & threshold
 
-```{r addMitoPercentage}
+```{r addMitoPercentage, fig.align='default', out.width='35%', fig.show='hold'}
 SO[["percent.mito"]] <- PercentageFeatureSet(SO, pattern="^mt-")      # CHANGE THE PATTERN TO FIT ANY SPECIES
 SO@meta.data[SO@meta.data$percent.mito > mito.high, "outlier.mito"] <- TRUE
 SO@meta.data[SO@meta.data$percent.mito < mito.high, "outlier.mito"] <- FALSE
-```
 
-```{r plot-mito, fig.align='default', out.width='50%', fig.show='hold'}
-plot1 <- VlnPlot(SO, features = c("percent.mito"), ncol = 3) +
-  geom_hline(aes(yintercept = mito.high), color="blue", size=1.5) +
-  #geom_hline(aes(yintercept = mito.low), color="orange", size=1.5) +
-  ggtitle("Mitochondrial expression\npercentage") +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
-  NoLegend()
+plot1 <- VlnPlot(SO, features = c("percent.mito")) +
+    geom_hline(aes(yintercept = mito.high), color = "#FF0000AA", size = 1.5) +
+    ggtitle("Mitochondrial expression\npercentage", subtitle = paste0("threshold at ", mito.high, "%")) +
+    theme(axis.title.x = element_blank(),
+          axis.text = element_text(size = 16),
+          axis.text.x = element_text(angle = 0, size = 24, hjust = 0.5, face = "bold"),
+          text = element_text(size = 24),
+          plot.subtitle = element_text(hjust = 0.5)) +
+    NoLegend() +
+    scale_y_continuous(labels = scales::percent_format(scale = 1))
 
-plot2 <- VlnPlot(SO, features = c("percent.mito"), ncol = 3) +
-  geom_hline(aes(yintercept = mito.high), color="blue", size=1.2) +
-  #geom_hline(aes(yintercept = mito.low), color="orange", size=1.2) +
-  ylim(0, 12) +
-  ggtitle("Mitochondrial expression\npercentage - zoom in") +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
-  NoLegend()
+plot2 <- VlnPlot(SO, features = c("percent.mito")) +
+    geom_hline(aes(yintercept = mito.high), color = "#FF0000AA", size = 1.5) +
+    ggtitle("Zoom in", subtitle = paste0("threshold at ", mito.high, "%")) +
+    theme(axis.title.x = element_blank(),
+          axis.text = element_text(size = 16),
+          axis.text.x = element_text(angle = 0, size = 24, hjust = 0.5, face = "bold"),
+          text = element_text(size = 24),
+          plot.subtitle = element_text(hjust = 0.5)) +
+    NoLegend() +
+    scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+    coord_cartesian(ylim = c(0, 12))
 
 plot1
 plot2
 ```
 
-The cells deleted by this filter are `r dim(SO@meta.data[SO@meta.data$percent.mito > mito.high,])[1]`.
+The number of cells removed by this filter is `r table(SO$outlier.mito)["TRUE"]`.
+These cells have a percentage of mitochondrial reads higher than the threshold of `r mito.high`%.
 
 
-## Percentage of ribosomal reads & cutoffs
+## Percentage of ribosomal reads & threshold
 
-```{r addRiboPercentage}
+```{r addRiboPercentage, fig.align = "center", out.width='35%'}
 SO[["percent.ribo"]] <- PercentageFeatureSet(SO, pattern="^Rp[sl]")   # SEE IF ANY MODIFICATION IS REQUIRED
 SO@meta.data[SO@meta.data$percent.ribo > ribo.low, "outlier.ribo"] <- FALSE
 SO@meta.data[SO@meta.data$percent.ribo < ribo.low, "outlier.ribo"] <- TRUE
+
+VlnPlot(SO, features = c("percent.ribo")) +
+    geom_hline(aes(yintercept = ribo.low), color="#FF0000AA", size=1.5) +
+    ggtitle("Ribosomal expression\npercentage", subtitle = paste0("threshold at ", ribo.low, "%")) +
+    theme(axis.title.x = element_blank(),
+          axis.text = element_text(size = 16),
+          axis.text.x = element_text(angle = 0, size = 24, hjust = 0.5, face = "bold"),
+          text = element_text(size = 24),
+          plot.subtitle = element_text(hjust = 0.5)) +
+    NoLegend() +
+    scale_y_continuous(labels = scales::percent_format(scale = 1))
 ```
 
-```{r plot-ribo, fig.align = 'center', out.width='50%'}
-VlnPlot(SO, features = c("percent.ribo"), ncol = 3) +
-  #geom_hline(aes(yintercept = ribo.high), color="blue", size=1.5) +
-  geom_hline(aes(yintercept = ribo.low), color="orange", size=1.5) +
-  ggtitle("Ribosomal expression\npercentage") +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
-  NoLegend()
-```
+The number of cells removed by this filter is `r table(SO$outlier.ribo)["TRUE"]`.
+These cells have a percentage of ribosomal reads lower than the threshold of `r ribo.low`%.
 
-The cells deleted by this filter are `r dim(SO@meta.data[SO@meta.data$percent.ribo < ribo.low,])[1]`.
 
 
 ## UMI counts thresholds
 
-```{r plot-countRNA, fig.align='default', out.width='50%', fig.show='hold'}
+```{r plot-countRNA, fig.align='default', out.width='35%', fig.show='hold'}
 SO@meta.data[, "outlier.nCount"] <- FALSE
 SO@meta.data[SO@meta.data$nCount_RNA > max.counts | SO@meta.data$nCount_RNA < min.counts, "outlier.nCount"] <- TRUE
 
-plot1 <- VlnPlot(SO, features = c("nCount_RNA"), ncol = 3) +
-  geom_hline(aes(yintercept = max.counts), color="purple", size=1.5) +
-  geom_hline(aes(yintercept = min.counts), color="green", size=1.5) +
-  ggtitle("Read counts per cell") +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
-  NoLegend()
+plot1 <- VlnPlot(SO, features = c("nCount_RNA")) +
+    geom_hline(aes(yintercept = max.counts), color="#FF0000AA", size=1.5) +
+    geom_hline(aes(yintercept = min.counts), color="#FF0000AA", size=1.5) +
+    ggtitle("UMI counts per cell", subtitle = paste0("thresholds at ", min.counts, " and ", max.counts)) +
+    ylab("nCount_RNA") +
+    theme(axis.title.x = element_blank(),
+          axis.text = element_text(size = 16),
+          axis.text.x = element_text(angle = 0, size = 24, hjust = 0.5, face = "bold"),
+          text = element_text(size = 24),
+          axis.title.y = element_text(size = 16),
+          plot.subtitle = element_text(hjust = 0.5)) +
+    NoLegend()
 
-plot2 <- VlnPlot(SO, features = c("nCount_RNA"), ncol = 3) +
-  geom_hline(aes(yintercept = max.counts), color="purple", size=1.5) +
-  geom_hline(aes(yintercept = min.counts), color="green", size=1.5) +
-  ylim(0, 25000) +
-  ggtitle("Read counts per cell\nzoom in") +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
-  NoLegend()
+plot2 <- plot1 +
+    ylim(0, 25000) +
+    ggtitle("Zoom in", subtitle = paste0("thresholds at ", min.counts, " and ", max.counts))
 
 plot1
 plot2
 ```
 
-The cells deleted by this filter are `r dim(SO@meta.data[SO@meta.data$nCount_RNA < min.counts | SO@meta.data$nCount_RNA > max.counts,])[1]`.
+The number of cells removed by this filter is `r table(SO$outlier.nCount)["TRUE"]`.
+These cells have either less than `r min.counts` UMI counts or more than `r max.counts` UMI counts.
 
+## Feature counts threshold
 
-## Number of detected features per cell
-
-```{r plot-featureRNA, fig.align = "center", out.width='50%'}
+```{r plot-featureRNA, out.width='35%'}
 SO@meta.data[SO@meta.data$nFeature_RNA > min.feat, "outlier.nFeature"] <- FALSE
 SO@meta.data[SO@meta.data$nFeature_RNA < min.feat, "outlier.nFeature"] <- TRUE
 
-
-VlnPlot(SO, features = c("nFeature_RNA"), ncol = 3) +
-  geom_hline(aes(yintercept = min.feat), color="#56B4E9", size=1.5) +
-  ggtitle("Number of detected features\nper cell") +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 0, size = 18, hjust = 0.5, face = "bold")) +
-  NoLegend()
+VlnPlot(SO, features = c("nFeature_RNA")) +
+    geom_hline(aes(yintercept = min.feat), color="#FF0000AA", size=1.5) +
+    ggtitle("Number of detected features\nper cell", subtitle = paste0("threshold at ", min.feat, " counts")) +
+    ylab("nFeature_RNA") +
+    theme(axis.title.x = element_blank(),
+          axis.text = element_text(size = 16),
+          axis.text.x = element_text(angle = 0, size = 24, hjust = 0.5, face = "bold"),
+          text = element_text(size = 24),
+          axis.title.y = element_text(size = 16),
+          plot.subtitle = element_text(hjust = 0.5)) +
+    NoLegend()
 ```
 
-The cells deleted by this filter are `r dim(SO@meta.data[SO@meta.data$nFeature_RNA < min.feat,])[1]`.
+The number of cells removed by this filter is `r table(SO$outlier.nFeature)["TRUE"]`.
+These cells have less than `r min.feat` feature counts.
 
 
 ## Repartition of detected features
@@ -553,7 +565,7 @@ invisible(apply(combn(qc_param, 2), 2, function(x){
 }))
 ```
 
-The cells deleted by application of all the cutoffs are `r dim(SO@meta.data[SO@meta.data$percent.mito > mito.high | SO@meta.data$percent.ribo < ribo.low | SO@meta.data$nCount_RNA < min.counts | SO@meta.data$nCount_RNA > max.counts | SO@meta.data$nFeature_RNA < min.feat,])[1]`
+The cells deleted by application of all the thresholds are `r dim(SO@meta.data[SO@meta.data$percent.mito > mito.high | SO@meta.data$percent.ribo < ribo.low | SO@meta.data$nCount_RNA < min.counts | SO@meta.data$nCount_RNA > max.counts | SO@meta.data$nFeature_RNA < min.feat,])[1]`
 
 ```{r filterQC}
 SO <- subset(SO,
