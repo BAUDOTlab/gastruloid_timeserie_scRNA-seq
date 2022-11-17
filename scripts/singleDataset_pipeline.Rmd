@@ -80,7 +80,7 @@ params:
     general.seed: 17
 title: |
   | Protocole 1:
-  | single scRNAseq data analysis
+  | single scRNAseq data analysis
   | `r params$dataset`
 ---
 
