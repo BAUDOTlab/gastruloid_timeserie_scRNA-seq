@@ -76,7 +76,7 @@ option_list <- list(
     make_option(c("--pca_print"), action="store", default=10, type='integer',
                 help="number of features to print from the top of each PC"),
     
-    make_option(c("-t", "--top_pcs"), action="store", default=6, type='integer',
+    make_option(c("-t", "--top_pcs"), action="store", default=30, type='integer',
                 help="number of PCs to select for the downstream analysis"),
     
     make_option(c("-o", "--doublet_rate"), action="store", default=8, type='integer',

@@ -48,15 +48,15 @@ dotPlotsGoi <- function(SO, geneList, title=NULL){
 }
 
 
-createDimPlot <- function(SO, title=NA, cols=NULL){
-    ## DimPlot
-    p <- DimPlot(SO, reduction = "umap2d", pt.size = 0.8,
-                 label = F, cols = cols) +
-        ggtitle(title) +
-        CenterTitle() +
-        NoAxes()
-    LabelClusters(p, id = "ident",  fontface = "bold", size = 5)
-}
+#createDimPlot <- function(SO, title=NA, cols=NULL){
+#    ## DimPlot
+#    p <- DimPlot(SO, reduction = "umap2d", pt.size = 0.8,
+#                 label = F, cols = cols) +
+#        ggtitle(title) +
+#        CenterTitle() +
+#        NoAxes()
+#    LabelClusters(p, id = "ident",  fontface = "bold", size = 5)
+#}
 
     
 doFeaturePlot <- function(SO, geneList, split.by=NULL){
