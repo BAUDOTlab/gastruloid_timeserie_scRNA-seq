@@ -29,10 +29,6 @@ params:
         value: FALSE
     do.merge:
         value: FALSE
-    mito.low:
-        value: 1.5
-        min: 0
-        max: 99
     mito.high:
         value: 10
         min: 1
@@ -41,10 +37,6 @@ params:
         value: 25
         min: 0
         max: 99
-    ribo.high:
-        value: 45
-        min: 1
-        max: 100
     min.feat:
         value: 200
     min.cells:
@@ -63,11 +55,11 @@ params:
     do.scale:
         value: FALSE
     pca.npcs:
-        value: 30
+        value: 50
     pca.print:
         value: 10
     top.pcs:
-        value: 15
+        value: 30
     dblt.rate:
         value: 8
     res:
@@ -227,37 +219,38 @@ Set either input and output directories.
 
 ```{r base-path}
 #basePath <- "/home/celine/temp2"
-basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
-#basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
+#basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
+basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
 ```
 
 ### Input directories
 
 Get the path of the inputs used for the analysis:
 
-- mmgLab.data
+- mmgLab.data: directory gathering the data to analyse,
 
-- atlas.folder
+- atlas.folder: directory that contains the Pijuan-Sala et al. atlas,
 
-- classifier.folder
+<!-- - classifier.folder -->
 
-- inputTables.folder
+- inputTables.folder: directory that contains table to set the colors,
 
-- otherInputs
+- otherInputs: directonry that contains the list of the genes of interest.
 
 ```{r input-dirs}
 inputs.folder <- file.path(basePath, "inputData")
 
 mmgLab.data <- file.path(inputs.folder, "lab_data")
 atlas.folder <- file.path(inputs.folder, "atlas")
-classifier.folder <- file.path(inputs.folder, "scmap_pijuansala_classifier")
+#classifier.folder <- file.path(inputs.folder, "scmap_pijuansala_classifier")
 inputTables.folder <- file.path(inputs.folder, "InputTables")
 otherInputs <- file.path(inputs.folder, "other")
 ```
 
 ### Output directories
 
-Management of pre-existing ran analysis to output figures, tables and reports.
+Create or reuse directories (if already existing) to store the outputs such as
+figures, tables and reports.
 
 ```{r anteriority, eval=!new.analysis, echo=!new.analysis}
 last_analysis <- 0
@@ -337,6 +330,7 @@ knitr::opts_chunk$set(
 data.path <- file.path(mmgLab.data, dataset)
 raw.data <- Read10X(data.dir = data.path, gene = 2)
 SO <- CreateSeuratObject(counts=raw.data, project=dataset)
+SO
 ```
 
 ## Add and show metadata
@@ -512,6 +506,7 @@ These cells have less than `r min.feat` feature counts.
 ## Repartition of detected features
 
 Features that are detected in `r min.cells` cells or fewer will be removed from the analysis.
+Among the `r dim(SO[1])` features mentioned after loading, some of them were never detected.
 
 ```{r plot-geneRepartition}
 # Create dataframe
@@ -519,10 +514,11 @@ df <- data.frame(rowSums(SO@assays$RNA@counts != 0))
 df$features <- rownames(df)
 colnames(df) <- c('Nbr_of_cells', 'features')
 rownames(df) <- NULL
+df_non0 <- df[df$Nbr_of_cells > 0, ]
 
 ## Plot gene expression repartition
-ggplot(df, aes(x = Nbr_of_cells)) +
-  geom_histogram() +
+ggplot(df_non0[c('Nbr_of_cells', 'features')], aes(x = Nbr_of_cells)) +
+  geom_histogram(bins = 50) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5),
         text = element_text(size = 20)) +
@@ -532,11 +528,14 @@ ggplot(df, aes(x = Nbr_of_cells)) +
   expand_limits(x=c(0,10500), y=c(0,2000)) +
   geom_vline(aes(xintercept = min.cells), color="green", size=1) +
   ggtitle(paste0("Repartition of detected features\n", dataset)) +
-  geom_text(aes(x=min.cells,label = paste0("\n", min.cells), y=1800, hjust = 1))
+  geom_text(aes(x=min.cells,label = paste0("\n", min.cells), y=1800, hjust = 1.5))
 ```
 
-Based on this threshold, `r length(which(df$Nbr_of_cells <= min.cells))` features
-are removed for the downstream analysis.
+The number of features that have never been detected is `r table(df$Nbr_of_cells == 0)["TRUE"]`.
+In addition, features that have been detected in `r min.cells` or less will also be removed.
+It involves `r table(df_non0$Nbr_of_cells <= min.cells)["TRUE"]`.
+
+In total, `r table(df$Nbr_of_cells <= min.cells)["TRUE"]` features will be removed when the quality control is applied.
 
 ## Quality control application
 
@@ -555,17 +554,27 @@ for (aValue in val){
 invisible(apply(combn(qc_param, 2), 2, function(x){
   do.call("<-", list(x[1], SO@meta.data[,x[1]]))
   do.call("<-", list(x[2], SO@meta.data[,x[2]]))
-  print(ggplot( SO@meta.data, # Plot FALSE first and TRUE after
+    print(
+        ggplot(SO@meta.data, # Plot FALSE first and TRUE after
                 aes( x = SO@meta.data[,x[1]],
                      y = SO@meta.data[,x[2]],
-                     color = SO@meta.data[,plotCols[[x[1]]]] | SO@meta.data[,plotCols[[x[2]]]])) +
+                    color = SO@meta.data[,plotCols[[x[1]]]] | SO@meta.data[,plotCols[[x[2]]]]
+               )) +
           geom_point( size = 0.5) +
           labs( x = x[1], y = x[2], color = "Outliers") +
-          scale_color_manual( values = c( "TRUE" = "#FF0000AA", "FALSE" = "#44444444")))
+          scale_color_manual( values = c( "TRUE" = "#FF0000AA", "FALSE" = "#44444444")) +
+            theme(legend.key.size = unit(1, 'cm'),
+                  legend.background = element_rect(colour = NA, fill = NA),
+                  legend.text = element_text(size=10),
+                  legend.title = element_text(size=14),
+                  legend.position = c(.9,.7),
+                  axis.title = element_text(size=16),
+                  axis.text = element_text(size = 14)) +
+            guides(color = guide_legend(override.aes = list(size = 4))))
 }))
 ```
+The number of cells removed by the application of all the filters is `r dim(SO@meta.data[SO@meta.data$percent.mito > mito.high | SO@meta.data$percent.ribo < ribo.low | SO@meta.data$nCount_RNA < min.counts | SO@meta.data$nCount_RNA > max.counts | SO@meta.data$nFeature_RNA < min.feat,])[1]`.
 
-The cells deleted by application of all the thresholds are `r dim(SO@meta.data[SO@meta.data$percent.mito > mito.high | SO@meta.data$percent.ribo < ribo.low | SO@meta.data$nCount_RNA < min.counts | SO@meta.data$nCount_RNA > max.counts | SO@meta.data$nFeature_RNA < min.feat,])[1]`
 
 ```{r filterQC}
 SO <- subset(SO,
@@ -601,88 +610,9 @@ ggplot(rbind(size_track1, size_track2), aes(x = Analysis_step_name, y = Nbr_of_c
 gc()
 ```
 
-# Preprocessing workflow before doublet removal
-
-```{r normalization1}
-SO <- NormalizeData(SO, normalization.method = norm.meth, verbose=FALSE)
-```
-
-```{r show-slots, eval=FALSE, echo=FALSE}
-data.frame(GetAssayData(SO, slot = "counts")[1:5,1:5]) %>%
-  knitr::kable(caption = "Raw counts in 'counts' slot") %>% 
-  kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  scroll_box(width = "800px", height = "300px")
-data.frame(GetAssayData(SO, slot = "data")[1:5,1:5]) %>%
-  knitr::kable(caption = "Normalized counts in 'data' slot") %>% 
-  kable_styling(bootstrap_options = c("striped", "hover")) %>%
-  scroll_box(width = "800px", height = "300px")
-```
-
-```{r hvg-vst1, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
-SO <- FindVariableFeatures(SO, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
-```
-
-```{r hvg-mvp1, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-SO <- FindVariableFeatures(SO, selection.method = hvg.meth, verbose=FALSE)
-```
-
-```{r show-HVGnum1, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-t(as.data.frame(table(SO@assays[["RNA"]]@meta.features$mvp.variable))) %>%
-  knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
-               row.names = FALSE,
-               escape = F,
-               align = "cc") %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
-```
-
-```{r preprocess1-1, results='hold'}
-SO <- ScaleData(SO, features=rownames(SO), do.scale=TRUE, verbose=FALSE) # do.scale=TRUE to make DoubletFinder working
-SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
-```
-
-```{r plot-elbow1}
-ElbowPlot(SO, ndims = pca.npcs) +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5, size = 20)) +
-  geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
-  ggtitle(paste0(SO@project.name, "\nElbowPlot"))        
-```
-
-```{r preprocess1-2}
-resolutions <- seq(0.6, 1.6, 0.2)
-SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
-SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
-SO <- RunUMAP(SO, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
-```
-
-```{r plot-clusters-1, fig.align='default', out.width="50%", fig.show='hold'}
-for (ares in resolutions){
-  clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
-  Idents(SO) <- clusterResName
-  
-  DimPlot(SO,
-          pt.size = 1,
-          label = T,
-          label.size = 6,
-          repel = T) +
-    NoLegend() +
-    ggtitle(paste0(dataset, " : clusters at resolution ", ares)) +
-    theme(plot.title = element_text(hjust = 0.5),
-          axis.text = element_blank(),
-          # axis.ticks = element_blank()
-          line = element_blank())
-  
-  Sys.sleep(0.5)
-}
-```
-
 ```{r save1}
-saveRDS(SO, file=file.path(rdsObjects, paste0("01_standardWF_", dataset, ".rds")))
+saveRDS(SO, file=file.path(rdsObjects, paste0("01_qualityControl_", dataset, ".rds")))
 ```
-
-- - -
-
-\clearpage
 
 ```{r setup3, eval=TRUE, include=FALSE}
 knitr::opts_chunk$set(
@@ -703,50 +633,119 @@ knitr::opts_chunk$set(
   echo = TRUE
 )
 ```
+- - -
+
+\clearpage
+
 
 # Doublets identification and removal
 
 Doublets are considered as technical artifacts that have to be filtered out.
-In this part, I will use the R package DoubletFinder (REFERENCE PAPIER DOUBLET FINDER).
-
-This tool require the following steps
-
--   homotypic doublet proportion estimation,
-
--   pK parameter optimization
-
-to be completed.
-
-## Parameters set up
-
+To perform the doublets identification and removal, I use the R package DoubletFinder (REFERENCE PAPIER DOUBLET FINDER).  
 DoubletFinder relies on 3 main parameters:
 
--   pN, the number of artificial generated doublets - by default = 0.25
+-   pN, the number of artificial generated doublets - set by default at 0.25
 
--   pK, the PC neighborhood size used to compute proportion of artificial nearest neighbors (pANN), to be determined
+-   nExp, the number of predicted doublets,
 
--   nExp, the number of predicted doublets.
+-   pK, the PC neighborhood size used to compute proportion of artificial nearest neighbors (pANN), what will be automatically determined according to the data.
 
-### Heterotypic doublets estimation
+The estimation of predicted doublets (nExp) consists in identifying the heterotypic doublets.
+That is to say the data must have a cell identity label. Also, DoubletFinder requires the data to be preprocessed.
 
-#### Cell annotation
+## Preprocessing workflow (before doublet removal) {.tabset .tabset-pills .tabset-fade}
 
-##### Atlas preparation
+<!-- ```{r show-slots, eval=FALSE, echo=FALSE} -->
+<!-- data.frame(GetAssayData(SO, slot = "counts")[1:5,1:5]) %>% -->
+<!--   knitr::kable(caption = "Raw counts in 'counts' slot") %>%  -->
+<!--   kable_styling(bootstrap_options = c("striped", "hover")) %>% -->
+<!--   scroll_box(width = "800px", height = "300px") -->
+<!-- data.frame(GetAssayData(SO, slot = "data")[1:5,1:5]) %>% -->
+<!--   knitr::kable(caption = "Normalized counts in 'data' slot") %>%  -->
+<!--   kable_styling(bootstrap_options = c("striped", "hover")) %>% -->
+<!--   scroll_box(width = "800px", height = "300px") -->
+<!-- ``` -->
 
-```{r atlasLoading}
+```{r hvg-vst1, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
+SO <- NormalizeData(SO, normalization.method = norm.meth, verbose=FALSE)
+SO <- FindVariableFeatures(SO, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
+```
+
+```{r hvg-mvp1, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
+SO <- NormalizeData(SO, normalization.method = norm.meth, verbose=FALSE)
+SO <- FindVariableFeatures(SO, selection.method = hvg.meth, verbose=FALSE)
+
+head(SO@assays[["RNA"]]@meta.features) %>%
+  knitr::kable(caption = "Example of HVG selection output") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+t(as.data.frame(table(SO@assays[["RNA"]]@meta.features$mvp.variable))) %>%
+  knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
+               row.names = FALSE,
+               escape = F,
+               align = "cc") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+```{r preprocess1-1, results='hold', out.width='50%', fig.show='hold', message=TRUE}
+SO <- ScaleData(SO, features=rownames(SO), do.scale=TRUE, verbose=FALSE) # do.scale=TRUE to make DoubletFinder working
+SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
+
+ElbowPlot(SO, ndims = pca.npcs) +
+  theme_minimal() +
+  theme(axis.title = element_text(size=14),
+  axis.text = element_text(size = 14),
+  plot.title = element_text(hjust = 0.5, size = 20)) +
+  geom_vline(aes(xintercept = top.pcs), color="#FF0000AA", size=1) +
+  ggtitle(paste0(SO@project.name, "\nElbowPlot"))        
+
+SO <- RunUMAP(SO, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
+resolutions <- c(seq(0.1, 0.4, 0.1), seq(0.6, 1.6, 0.2))
+SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
+SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
+```
+
+By default, I will use the resolution 1 for the rest of the analysis.
+
+```{r plot-clusters-1, out.width="50%", results='asis'}
+invisible(sapply(resolutions, function(ares)
+{
+    cat("### Res.  ", ares, "\n");
+    
+    clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SO@meta.data), value = TRUE)
+    Idents(SO) <- clusterResName
+    
+    DimPlot(SO,
+                   pt.size = 1,
+                   label = TRUE,
+                   label.size = 6,
+                   repel = T) +
+               NoLegend() +
+               ggtitle(paste0(dataset, " : clusters at resolution ", ares)) +
+               theme(plot.title = element_text(hjust = 0.5),
+                     axis.text = element_blank(),
+                     line = element_blank());
+    
+    cat(" \n \n"); # Required for '.tabset'
+}))
+```
+
+## Cells annotation through label trasfert from the atlas
+
+In this part, the atlas of Pijuan-Sala et al. is loaded, subsetted to the expected celltypes in our data, and preprocessed.
+Then, I perform the label transfer from the atlas to our data, resulting in the following plots.
+This cell identity annotation is not the definitive one. Once the doublet are removed, a new annotation will be performed.
+
+```{r atlasLoading, results='hide'}
 atlas.metadata <- read.table(file.path(atlas.folder, "meta.tab") , sep="\t" , header=TRUE )
 atlas.genes <- read.csv(file.path(atlas.folder, "genes.tsv"), sep="\t", header = FALSE, as.is = TRUE)
 atlas.data <- readMM(file.path(atlas.folder, "raw_counts.mtx"))
 atlas.data@Dimnames[[2]] <- atlas.metadata$cell
 atlas.data@Dimnames[[1]] <- atlas.genes$V2
-```
 
-```{r garbage-collec4, include=FALSE}
 rm(atlas.genes)
 gc()
-```
 
-```{r atlasStandardProcess}
 atlas <- CreateSeuratObject(counts = atlas.data, project = "Atlas", min.cells=min.cells, min.features = min.feat)
 rm(atlas.data)
 gc()
@@ -761,14 +760,10 @@ atlas <- AddMetaData(object = atlas, metadata = atlas.metadata$sequencing.batch,
 #atlas <- AddMetaData(object = atlas, metadata = atlas.metadata$sequencing.batch+10, col.name = "Replicate")
 atlas <- AddMetaData(object = atlas, metadata = paste(atlas$day, "_batch_0", atlas$replicate, sep=""), col.name = "dataset")
 atlas$model <- "Embryo"
-```
 
-```{r garbage-collec5, include=FALSE}
 rm(atlas.metadata)
 gc()
-```
 
-```{r atlas_subsetting}
 Idents(atlas) <- atlas$day
 atlas.subset <- subset(x = atlas, idents = c("mixed_gastrulation"), invert=T)
 
@@ -776,97 +771,104 @@ Idents(atlas.subset) <- atlas.subset$celltype
 atlas.subset <- subset(x = atlas.subset, cells = colnames(atlas.subset)[is.na(Idents(atlas.subset))], invert = T)
 atlas.subset <- subset(atlas.subset, idents=unique(grep("ExE", atlas.subset$celltype, value = T)), invert=T)
 atlas.subset <- subset(atlas.subset, idents="Parietal endoderm", invert=T)
-```
 
-```{r garbage-collec6, include=FALSE}
 rm(atlas)
 gc()
 ```
 
-##### Atlas preprocessing
-
-```{r hvg-vst-atlas, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
+```{r hvg-vst-atlas, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp", message=TRUE}
 atlas.subset <- FindVariableFeatures(atlas.subset, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
+atlas.subset <- ScaleData(atlas.subset, do.scale = do.scale, verbose = FALSE)
+atlas.subset <- RunPCA(atlas.subset, npcs = top.pcs, verbose = FALSE)
+
 saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
+
+gc()
 ```
 
-```{r hvg-mvp-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp", results='asis'}
+```{r hvg-mvp-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp", message=TRUE}
 atlas.subset <- FindVariableFeatures(atlas.subset, selection.method = hvg.meth, verbose=FALSE)
-saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
-```
-
-```{r show-HVGnum-atlas, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
 t(as.data.frame(table(atlas.subset@assays[["RNA"]]@meta.features$mvp.variable))) %>%
   knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
                row.names = FALSE,
                escape = F,
                align = "cc") %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
-```
 
-```{r preprocess-atlas1, results='hold'}
-atlas.subset <- ScaleData(atlas.subset, do.scale = FALSE, verbose = FALSE)
+atlas.subset <- ScaleData(atlas.subset, do.scale = do.scale, verbose = FALSE)
 atlas.subset <- RunPCA(atlas.subset, npcs = top.pcs, verbose = FALSE)
+saveRDS(atlas.subset, file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
+
 gc()
 ```
 
-##### Transfert learning from the Atlas
-
-```{r mapping-atlas}
+```{r mapping-atlas1, out.width="50%"}
 anchors <- FindTransferAnchors(reference = atlas.subset, query = SO,
                                dims = 1:top.pcs, reference.reduction = "pca")
 predictions <- TransferData(anchorset = anchors, refdata = atlas.subset$celltype,
                             dims = 1:top.pcs)
-SO <- AddMetaData(SO, metadata = predictions)
+SO <- AddMetaData(SO, metadata = predictions[,c("predicted.id", "prediction.score.max")])
 SO$celltype_DF <- SO$predicted.id
 SO$predicted.id <- NULL
-```
 
-```{r plot-DF-celltype, fig.show='hold'}
+write.table(x = predictions, file = file.path(dataset.anFolder,
+                                               paste0("cellIdentitiesPredictions_DF_", 
+                                                      dataset, ".csv")), sep = ",", row.names = F, col.names = T)
+
+rm(predictions)
+gc()
+
 Idents(SO) <- SO@meta.data$celltype_DF
-
 DimPlot(SO,
         pt.size = 1,
-        label = FALSE,
+        repel = TRUE,
+        label = TRUE,
+        label.size = 6,
         cols = colors.celltype[levels(Idents(SO))]) +
-  ggtitle(paste0(dataset, " : cell identities")) +
+  ggtitle(paste0(dataset, " : cell identities to perform DoubletFinder")) +
   theme(plot.title = element_text(hjust = 0.5),
         axis.text = element_blank(),
-        # axis.ticks = element_blank()
-        line = element_blank())
-
-DimPlot(SO,
-        pt.size = 1,
-        label = FALSE,
-        cols = colors.celltype[levels(Idents(SO))],
-        split.by = 'celltype_DF', ncol=3) +
-  NoLegend() +
-  ggtitle(paste0(dataset, " : cell identities separately")) +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text = element_blank(),
-        # axis.ticks = element_blank()
-        line = element_blank())
+        line = element_blank()) +
+        NoLegend()
 ```
 
-#### Number of cells to label as doublet (ie. heterotypic doublets)
+```{r plot-DF-celltype-facets, fig.height = 15}
+cellsData <- data.frame(SO@reductions[["umap"]]@cell.embeddings, SO@meta.data$celltype_DF)
+colnames(cellsData) <- c(colnames(SO@reductions[["umap"]]@cell.embeddings), "celltype_DF")
+
+ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = .75,
+                color = "grey") +
+    geom_point( data = cellsData, # Now provide data including column for facetting
+                aes(color = celltype_DF),
+                alpha = .5,
+                size  = 1.2) +
+    scale_fill_manual(values = colors.celltype[SO@meta.data$celltype_DF], aesthetics = "color") +
+    facet_wrap(facets = vars(celltype_DF),
+               ncol = 4) +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : cell identity facets")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          # axis.ticks = element_blank()
+          line = element_blank())
+```
+
+## Number of heterotypic doublets estimation (nExp parameter)
 
 ```{r homotypic-proportion}
-# based on annotation (celltype)
-# could be also the louvain clusters determined from the preprocessus step
 annotations <- SO@meta.data$celltype_DF
 homotypic.prop <- modelHomotypic(annotations)
-```
-
-```{r heterotypic-estimation}
-# based on annotation (celltype)
-# could be also the louvain clusters determined from the preprocessus step
-nDoublets <- round(ncol(SO)*dblt.rate/100)
+nDoublets <- round(ncol(SO)*dblt.rate/100) 
 nDoublets_nonhomo <- round(nDoublets*(1-homotypic.prop))
 ```
 
 There are `r nDoublets_nonhomo` cells estimated as heterotypic doublets.
 
-### Neighborhood size optimization (pK parameter)
+## Neighborhood size optimization (pK parameter)
 
 ```{r generate-pKs, results='hide', fig.show='hide'}
 sweep.res <- paramSweep_v3(SO, PCs = 1:top.pcs) # as estimated from PC elbowPlot
@@ -875,7 +877,7 @@ Sys.sleep(0.5)
 bcmvn_SO <- find.pK(sweep.stats_SO)
 ```
 
-```{r optimize-pK}
+```{r optimize-pK, out.width="50%"}
 ggplot(bcmvn_SO, aes(pK, BCmetric, group = 1)) +
   geom_point() +
   geom_line()
@@ -888,7 +890,10 @@ pK <- as.numeric(as.character(pK[[1]]))
 
 ## Doublets identification - DoubletFinder run
 
-```{r runDF}
+It is possible to corroborate the identification of doublets with a high number of UMIs.
+The plots below allow to compare these 2 informations.
+
+```{r runDF, results='hide'}
 SO <- doubletFinder_v3(SO, 
                        PCs = 1:top.pcs, 
                        pN = 0.25,
@@ -896,44 +901,66 @@ SO <- doubletFinder_v3(SO,
                        nExp = nDoublets_nonhomo)
 ```
 
-```{r plot-doublets, fig.align='default', out.width='50%', fig.show='hold'}
-# remove the cells identified as doublets of each of the sub-datasets
+```{r plot_DF}
+# Plot the singlets, doublets and the count of UMIs in each cells
 col_dblts <- grep("DF.classifications", colnames(SO@meta.data), value=TRUE)
 Idents(SO) <- col_dblts
 
-DimPlot(SO,
-        pt.size = 1,
-        label = T,
-        label.size = 6,
-        repel = T,
-        split.by = col_dblts, ncol=3) +
-  NoLegend() +
-  ggtitle(paste0(dataset, " : doublets prediction")) +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text = element_blank(),
-        # axis.ticks = element_blank()
-        line = element_blank())
+cellsData <- data.frame(SO@reductions[["umap"]]@cell.embeddings, SO@meta.data[,col_dblts])
+colnames(cellsData) <- c(colnames(SO@reductions[["umap"]]@cell.embeddings), "col_dblts")
+p1 <- ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = .75,
+                color = "grey") +
+    geom_point( data = cellsData, # Now provide data including column for facetting
+                aes(color = col_dblts),
+                alpha = .5,
+                size  = 1.2) +
+    facet_wrap(facets = vars(factor(col_dblts, levels = c("Singlet", "Doublet"))),
+               ncol = 2) +
+    NoLegend() +
+    #ggtitle(paste0(dataset, " : cell identity facets")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          # axis.ticks = element_blank()
+          line = element_blank())
 
-FeaturePlot(SO, features = "nCount_RNA",
-        pt.size = 1) +
-        ggtitle(paste0(dataset, " : numbre of UMIs")) +
-        theme(plot.title = element_text(hjust = 0.5),
-            axis.text = element_blank(),
-            # axis.ticks = element_blank()
-            line = element_blank())
+cellsData <- data.frame(SO@reductions[["umap"]]@cell.embeddings, SO@meta.data$nCount_RNA)
+colnames(cellsData) <- c(colnames(SO@reductions[["umap"]]@cell.embeddings), "nCount_RNA")
+p2 <- ggplot(cellsData, # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point(aes(colour = nCount_RNA),
+               size  = 1) +
+    theme(axis.text = element_blank(),
+          # axis.ticks = element_blank()
+          line = element_blank())
+
+ylab <- p1$labels$y
+p1$labels$y <- p2$labels$y <- ""
+
+xlab <- p1$labels$x
+p1$labels$x <- p2$labels$x <- ""
+
+(p1 | p2) +
+    plot_layout(widths = c(2,1)) +
+    plot_annotation(title = paste0(dataset, " : doublet identification and level of UMI counts"),
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 18)))
+grid::grid.draw(grid::textGrob(ylab, x = 0.02, rot = 90))
+grid::grid.draw(grid::textGrob(xlab, y = 0.02))
 ```
 
+
 ```{r df-count-celltypeDF}
-Idents(SO) <- col_dblts
 celltypeDF <- as.data.frame.matrix(table(Idents(SO), SO@meta.data$celltype_DF))
 
 celltypeDF %>%
   knitr::kable(caption = "Doublet ratio over celltypes got from Rossi et al. classifier") %>% 
   kable_styling(bootstrap_options = c("striped", "hover")) %>%
   scroll_box(width = "100%", height = "300px")
-```
 
-```{r df-count-cluster}
 clustersRes <- grep(paste0("res.", res, "$"), colnames(SO@meta.data), value=TRUE)
 clusterDF <- as.data.frame.matrix(table(Idents(SO), SO@meta.data[,which(colnames(SO@meta.data) == clustersRes)])) 
 
@@ -943,17 +970,53 @@ clusterDF %>%
   scroll_box(width = "100%", height = "300px")
 ```
 
+```{r save2}  
+saveRDS(SO, file=file.path(rdsObjects, paste0("02_DFperformed_", dataset, ".rds"))) 
+``` 
+
+```{r setup5, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = FALSE,
+    echo = FALSE
+)
+```
+
+```{r restart2}
+atlas.subset <- readRDS(file.path(rdsObjects, paste0("XX_atlas_before_integ_with_", dataset, ".rds")))
+atlas.subset <- ScaleData(atlas.subset, do.scale = do.scale, verbose = FALSE)
+atlas.subset <- RunPCA(atlas.subset, npcs = top.pcs, verbose = FALSE)
+SO <- readRDS(file.path(rdsObjects, paste0("02_DFperformed_", dataset, ".rds")))
+col_dblts <- grep("DF.classifications", colnames(SO@meta.data), value=TRUE)
+Idents(SO) <- SO@meta.data[col_dblts]
+```
+
+```{r setup6, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
 ## Subset to singlets
 
-```{r remove-doublets}
+The number of cells removed by this subsetting is `r table(SO@meta.data[col_dblts])["Doublet"]`.
+
+```{r remove-doublets, results='hide'}
 SOsing <- subset(SO, idents='Singlet')
 
 # remove useless columns
-SOsing@meta.data[[grep("DF.classifications", colnames(SOsing@meta.data))]] <- NULL
-names(SOsing@meta.data)[names(SOsing@meta.data) == grep("pANN", colnames(SOsing@meta.data), value=T)] <- "pANN"
-```
+SOsing@meta.data[grep("^outlier", colnames(SOsing@meta.data))] <- NULL
+SOsing@meta.data[grep("DF.classifications", colnames(SOsing@meta.data))] <- NULL
+SOsing@meta.data[grep("pANN", colnames(SOsing@meta.data))] <- NULL
+SOsing@meta.data[grep("^RNA_snn_res.", colnames(SOsing@meta.data))] <- NULL
+SOsing@meta.data[grep("^seurat_clusters$", colnames(SOsing@meta.data))] <- NULL
 
-```{r size-singlets}
+rm(SO)
+gc()
+
+# add column to the dataframe 
 size_track3 <- data.frame(cbind(
   t(dim(SOsing)),
   "Removed doublets",
@@ -962,9 +1025,8 @@ size_track3 <- data.frame(cbind(
 colnames(size_track3) <- c('Nbr_of_features', 'Nbr_of_cells', 'Analysis_step_name', 'Step_number')
 size_track3$Nbr_of_cells <- as.integer(as.character(size_track3$Nbr_of_cells))
 size_track3$Nbr_of_features <- as.integer(as.character(size_track3$Nbr_of_features))
-```
 
-```{r plot-evolution2}
+# plot the dataframe informations
 ggplot(rbind(size_track1, size_track2, size_track3), aes(x = Analysis_step_name, y = Nbr_of_cells)) +
   geom_col(aes(color = Analysis_step_name, fill = Analysis_step_name), position = position_dodge(), width = 0.6) +
   theme_classic() +
@@ -981,10 +1043,6 @@ ggplot(rbind(size_track1, size_track2, size_track3), aes(x = Analysis_step_name,
 <!-- saveRDS(SOsing, file=file.path(rdsObjects, paste0("02_removedDoublets_", dataset, ".rds"))) -->
 <!-- ``` -->
 
-```{r garbage-collec2, include=FALSE}
-rm(SO)
-gc()
-```
 
 <!-- ```{r setup5, eval=TRUE, include=FALSE} -->
 <!-- knitr::opts_chunk$set( -->
@@ -1006,77 +1064,77 @@ gc()
 <!-- ) -->
 <!-- ``` -->
 
-# Preprocessing workflow after doublets removal
+---
 
-```{r hvg-vst2, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
+# Preprocessing workflow (after doublets removal) {.tabset .tabset-pills .tabset-fade}
+
+```{r hvg-vst2, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp", message=TRUE}
 SOsing <- FindVariableFeatures(SOsing, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
+var.feats.dataset <- VariableFeatures(SOsing)
+saveRDS(var.feats.dataset, file=file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
+
+SOsing <- ScaleData(SOsing, features=rownames(SOsing), do.scale=do.scale, verbose=FALSE)
+SOsing <- RunPCA(SOsing, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
+
+resolutions <- c(seq(0.1, 0.4, 0.1), seq(0.6, 1.6, 0.2))
+SOsing <- FindNeighbors(SOsing, dims = 1:top.pcs, verbose=FALSE)
+SOsing <- FindClusters(SOsing, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
+SOsing <- RunUMAP(SOsing, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
 ```
 
-```{r hvg-mvp2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
-SOsing <- FindVariableFeatures(SOsing, selection.method = hvg.meth, verbose=FALSE)
-head(SOsing@assays[["RNA"]]@meta.features) %>%
-  knitr::kable(caption = "Example of HVG selection output") %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
-```
-
-```{r show-HVGnum2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
+```{r hvg-mvp2, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp", message=TRUE}
 t(as.data.frame(table(SOsing@assays[["RNA"]]@meta.features$mvp.variable))) %>%
   knitr::kable(caption = "Number of features selected as highly variable genes (HVG)",
                row.names = FALSE,
                escape = F,
                align = "cc") %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
-```
 
-
-```{r preprocess2-1, results='hold'}
 var.feats.dataset <- VariableFeatures(SOsing)
 saveRDS(var.feats.dataset, file=file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
 
 SOsing <- ScaleData(SOsing, features=rownames(SOsing), do.scale=do.scale, verbose=FALSE)
 SOsing <- RunPCA(SOsing, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
-```
 
-```{r plot-elbow2}
-ElbowPlot(SOsing, ndims = pca.npcs) +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5, size = 20)) +
-  geom_vline(aes(xintercept = top.pcs), color = "purple", size = 1) +
-  ggtitle(paste0(SOsing@project.name, "\nElbowPlot"))
-```
+# ElbowPlot(SOsing, ndims = pca.npcs) +
+#   theme_minimal() +
+#   theme(plot.title = element_text(hjust = 0.5, size = 20)) +
+#   geom_vline(aes(xintercept = top.pcs), color = "purple", size = 1) +
+#   ggtitle(paste0(SOsing@project.name, "\nElbowPlot"))
 
-```{r preprocess2-2}
-SOsing@meta.data[grep("RNA_snn", names(SOsing@meta.data))] <- NULL
-resolutions <- seq(0.6, 1.6, 0.1)
+resolutions <- c(seq(0.1, 0.4, 0.1), seq(0.6, 1.6, 0.2))
 SOsing <- FindNeighbors(SOsing, dims = 1:top.pcs, verbose=FALSE)
 SOsing <- FindClusters(SOsing, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
 SOsing <- RunUMAP(SOsing, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
 ```
 
-```{r plot-clusters-2, fig.align='default', out.width="50%", fig.show='hold'}
-for (ares in resolutions){
-  clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SOsing@meta.data), value = TRUE)
-  Idents(SOsing) <- clusterResName
-  
-  DimPlot(SOsing,
-          pt.size = 1,
-          label = TRUE,
-          label.size = 6,
-          repel = TRUE) +
-    NoLegend() +
-    ggtitle(paste0(dataset, " : clusters at resolution ", ares)) +
-    theme(plot.title = element_text(hjust = 0.5),
-          axis.text = element_blank(),
-          # axis.ticks = element_blank()
-          line = element_blank())
-  
-  Sys.sleep(0.5)
-}
+```{r plot-clusters-2, out.width="50%", results='asis'}
+invisible(sapply(resolutions, function(ares)
+{
+    cat("## Res.  ", ares, "\n");
+    
+    clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SOsing@meta.data), value = TRUE)
+    Idents(SOsing) <- clusterResName
+    
+    DimPlot(SOsing,
+                   pt.size = 1,
+                   label = TRUE,
+                   label.size = 6,
+                   repel = TRUE) +
+               NoLegend() +
+               ggtitle(paste0(dataset, " : clusters at resolution ", ares)) +
+               theme(plot.title = element_text(hjust = 0.5),
+                     axis.text = element_blank(),
+                     line = element_blank());
+    
+    cat(" \n \n"); # Required for '.tabset'
+}))
 ```
 
-<!-- ```{r save4} -->
-<!-- saveRDS(SOsing, file=file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds"))) -->
-<!-- ``` -->
+```{r save4}
+saveRDS(SOsing, file=file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
+```
+
 <!--  -->
 <!-- ```{r setup7, eval=TRUE, include=FALSE} -->
 <!-- knitr::opts_chunk$set( -->
@@ -1106,34 +1164,63 @@ gc()
 
 \clearpage
 
-# Transfert learning from the Atlas {.tabset .tabset-pills .tabset-fade}
+# Transfer learning from the Atlas {.tabset .tabset-pills .tabset-fade}
 
 ## Cell identity transfert
 
-```{r mapping-atlas2}
+```{r mapping-atlas2, results='hide', out.width="50%"}
 anchors <- FindTransferAnchors(reference = atlas.subset, query = SOsing,
                                dims = 1:top.pcs, reference.reduction = "pca")
 predictions <- TransferData(anchorset = anchors, refdata = atlas.subset$celltype,
                             dims = 1:top.pcs)
-SOsing <- AddMetaData(SOsing, metadata = predictions)
+SOsing <- AddMetaData(SOsing, metadata = predictions[,c("predicted.id", "prediction.score.max")])
 SOsing$celltype <- SOsing$predicted.id
 SOsing$predicted.id <- NULL
-```
 
-```{r plot-celltype}
-Idents(SOsing) <- SOsing@meta.data$celltype
+write.table(x = predictions, file = file.path(dataset.anFolder,
+                                               paste0("cellIdentitiesPredictions_final_", 
+                                                      dataset, ".csv")), sep = ",", row.names = F, col.names = T)
+
+rm(predictions)
+gc()
+
+Idents(SOsing) <- SOsing@meta.data$celltype_DF
 DimPlot(SOsing,
         pt.size = 1,
-        label = FALSE,
-        cols = colors.celltype[levels(Idents(SOsing))],
-        split.by = "celltype",
-        ncol = 3) +
-  NoLegend() +
-  ggtitle(paste0("Celltypes of the analysed data after cell identity transfert\n", dataset)) +
+        repel = TRUE,
+        label = TRUE,
+        label.size = 6,
+        cols = colors.celltype[levels(Idents(SOsing))]) +
+  ggtitle(paste0(dataset, " : cell identities after doublet removal")) +
   theme(plot.title = element_text(hjust = 0.5),
         axis.text = element_blank(),
-        # axis.ticks = element_blank()
-        line = element_blank())
+        line = element_blank()) +
+        NoLegend()
+```
+
+Impact of the doublets removal on the label transfert (Seurat method).
+
+```{r}
+day <- NULL
+transition <- table(SOsing@meta.data[WhichCells(SOsing, idents = day), 'celltype_DF'], SOsing@meta.data[WhichCells(SOsing, idents = day), 'celltype'])
+dt <- as.data.frame(transition, row.names = names(SOsing@meta.data[WhichCells(SOsing, idents = day), 'celltype']))
+dt[dt == 0] <- NA
+names(dt) <- c("beforeDF", "afterDF", "counts")
+
+ggplot(dt, aes(beforeDF, afterDF, fill=counts)) +
+    geom_tile() +
+    geom_text(aes(label = counts), color="black", size = 2.5, fontface="bold") +
+    #scale_color_manual(values = c(NA, "black"), na.value = NA) +
+    coord_fixed() +
+    scale_fill_gradient(low = "white", high = "blue", na.value="white") +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    guides(fill = guide_colourbar(barwidth = 0.5,
+                                  barheight = 10,
+                                  title = "Counts")) +
+    ggtitle(paste0(dataset, " : impact of doublets removal on the label transfert")) +
+    CenterTitle() +
+    labs(x = "Celltype annotation before doublets removal", y = paste0("Celltype annotation after doublets removal"))
+
 ```
 
 ```{r setup9, eval=TRUE, include=FALSE}
@@ -1160,7 +1247,7 @@ knitr::opts_chunk$set(
 
 ## Global orientation of the UMAP plots
 
-### Integrate analyzed data with the Atlas
+### Integrate data with the Atlas
 
 ```{r integration-with-atlas}
 features <- SelectIntegrationFeatures(object.list = list(SOsing, atlas.subset))
@@ -1172,31 +1259,61 @@ DefaultAssay(SO.align) <- "integrated"
 
 SO.align <- ScaleData(SO.align, assay = DefaultAssay(SO.align), do.scale=do.scale, verbose = FALSE)
 SO.align <- RunPCA(SO.align, npcs = pca.npcs, verbose = FALSE)
-ElbowPlot(SO.align, ndims = pca.npcs)
-```
-
-```{r show-alignedUMAP}
-SO.align <- RunUMAP(SO.align, reduction = "pca", dims = 1:10)
+#ElbowPlot(SO.align, ndims = pca.npcs)
+SO.align <- RunUMAP(SO.align, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
 
 Idents(SO.align) <- "model"
+cellsData <- data.frame(SO.align@reductions[["umap"]]@cell.embeddings, SO.align@meta.data$model)
+colnames(cellsData) <- c(colnames(SO.align@reductions[["umap"]]@cell.embeddings), "model")
 
-DimPlot(SO.align,
-        pt.size = 1,
-        label = TRUE,
-        label.size = 6,
-        repel = TRUE,
-        split.by = "model",
-        ncol = 2) +
-  ggtitle("Gastruloid and atlas cells\nin a shared UMAP embedding") +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text = element_blank(),
-        # axis.ticks = element_blank()
-        line = element_blank())
+ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = .75,
+                color = "grey") +
+    geom_point( data = cellsData, # Now provide data including column for facetting
+                aes(color = model),
+                alpha = .5,
+                size  = 1.2) +
+    facet_wrap(facets = vars(factor(model, levels = c("Embryo", "Gastruloids"))),
+               ncol = 2) +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : atlas cells (as Embryo)\n and gastruloids after integration")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
 ```
+
+```{r eval=FALSE, echo=FALSE}
+cellsData <- cbind(cellsData, SO.align@meta.data$model)
+colnames(cellsData) <- c(colnames(SO.align@reductions[["umap"]]@cell.embeddings), "celltype", "model")
+
+ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = .75,
+                color = "grey") +
+    geom_point( data = cellsData, # Now provide data including column for facetting
+                aes(color = model),
+                alpha = .5,
+                size  = 1.2) +
+    facet_wrap(facets = vars(celltype, model),
+               ncol = 6) +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : model repartition among celltypes")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+```
+
 
 ### Get UMAP of a subset of the Atlas data
 
-```{r atlas_refLayout}
+UMAP dimension reduction on atlas, with 200 cells per celltype, 300 neighbors
+
+```{r atlas_refLayout, out.width="50%"}
 spread <- 2
 min_dist <- 1
 Idents(atlas.subset) <- 'celltype'
@@ -1211,7 +1328,7 @@ umap_init <- "spectral" # "normlaplacian", "spectral" (with noise),  "random", "
 reduction.use <- "pca"
 
 set.seed(general.seed)
-tmp <- umap(X = Embeddings(atlas.subset[[reduction.use]])[cells.use, 1:10],
+tmp <- umap(X = Embeddings(atlas.subset[[reduction.use]])[cells.use, 1:top.pcs],
             init = umap_init,
             n_neighbors = nn,
             n_components = 3,
@@ -1225,12 +1342,8 @@ tmp <- umap(X = Embeddings(atlas.subset[[reduction.use]])[cells.use, 1:10],
 tmp2 <- 0*Embeddings(atlas.subset[[reduction.use]])[, 1:3]
 tmp2[cells.use, ] <- tmp$embedding
 atlas.subset[["umap200"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP200_")
-```
 
-UMAP dimension reduction on atlas, with 200 cells per celltype, 300 neighbors
-
-```{r plot-atlasUMAP-200}
-DimPlot(atlas.subset, pt.size = 1, reduction = "umap200", label = T, cells = sample(cells.use),
+DimPlot(atlas.subset, pt.size = 1, reduction = "umap200", label = TRUE, cells = sample(cells.use),
         repel = TRUE, cols = colors.celltype[levels(Idents(atlas.subset))]) +
   NoLegend() +
   ggtitle(paste0(dataset, " : atlas celltypes\nvisualization reduced to 200 cells per celltype")) +
@@ -1282,7 +1395,7 @@ for(i in unique(SO.align$celltype)){
 gc()
 ```
 
-#### Compute UMAP dimension reduction on the integrated object, nested by the random initial coordinates
+#### Compute UMAP dimension reduction of the integrated object based on the random initial coordinates
 
 ```{r apply_UMAPshared}
 cells.use <- colnames(SO.align) #WhichCells(object = tmp,downsample = 300) #colnames(SO) #sample(colnames(SO),1000)
@@ -1293,7 +1406,7 @@ umap_init <- as.matrix(x_ini[cells.use,]) # "normlaplacian", "spectral" (with no
 
 set.seed(general.seed)
 reduction.use <- "pca"
-tmp <- umap(X = Embeddings(SO.align[[reduction.use]])[cells.use, 1:10],
+tmp <- umap(X = Embeddings(SO.align[[reduction.use]])[cells.use, 1:top.pcs],
             init = umap_init,
             n_neighbors = nn,
             n_components = 3,
@@ -1313,7 +1426,7 @@ umap_init <- as.matrix(x_ini[cells.use, 1:2]) # "normlaplacian", "spectral" (wit
 
 set.seed(general.seed)
 reduction.use <- "pca"
-tmp <- umap(X = Embeddings(SO.align[[reduction.use]])[cells.use, 1:10],
+tmp <- umap(X = Embeddings(SO.align[[reduction.use]])[cells.use, 1:top.pcs],
             init = umap_init,
             n_neighbors = nn,
             n_components = 2,
@@ -1329,14 +1442,14 @@ tmp2[cells.use,] <- tmp$embedding
 SO.align[["umapShared2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAPshared2d_", assay = DefaultAssay(SO.align))
 ```
 
-```{r plot-SOalign-umapShared2d}
-DimPlot(SO.align, pt.size = 1, reduction = "umapShared2d", label = T, 
-        repel = TRUE, cols = colors.celltype[levels(Idents(atlas.subset))]) + 
-  NoLegend() +
-  ggtitle(paste0(dataset, " : celltype layout\non the integrated object")) +
-  CenterTitle() +
-  NoAxes()
-```
+<!-- ```{r plot-SOalign-umapShared2d} -->
+<!-- DimPlot(SO.align, pt.size = 1, reduction = "umapShared2d", label = T,  -->
+<!--         repel = TRUE, cols = colors.celltype[levels(Idents(atlas.subset))]) +  -->
+<!--   NoLegend() + -->
+<!--   ggtitle(paste0(dataset, " : celltype layout\non the integrated object")) + -->
+<!--   CenterTitle() + -->
+<!--   NoAxes() -->
+<!-- ``` -->
 
 <!-- ```{r save6} -->
 <!-- saveRDS(SO.align, file=file.path(rdsObjects, paste0("05_UMAP_shared_", SO.align@project.name, ".rds"))) -->
@@ -1374,29 +1487,25 @@ knitr::opts_chunk$set(
 cells.use <- colnames(SO.align)[SO.align$model == "Gastruloids"]
 SO <- SO.align[, cells.use]
 SO@project.name <- dataset
-```
 
-```{r set-DefaultAssay}
 DefaultAssay(SO) <- "RNA"
 ```
 
-## Analyzed data preprocessing
+## Preprocessing
 
-```{r set-HVG, results='hold'}
+```{r set-HVG, message=TRUE}
 VariableFeatures(SO) <- var.feats.dataset
 SO <- ScaleData(SO, features=rownames(SO), do.scale=do.scale, verbose=FALSE)
 SO <- RunPCA(SO, npcs = pca.npcs, nfeatures.print = pca.print, seed.use = general.seed, verbose=TRUE)
+
+# ElbowPlot(SO, ndims = pca.npcs) +
+#   theme_minimal() +
+#   theme(plot.title = element_text(hjust = 0.5, size = 20)) +
+#   geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
+#   ggtitle(paste0(SO@project.name, "\nElbowPlot"))        
 ```
 
-```{r plot-elbow3}
-ElbowPlot(SO, ndims = pca.npcs) +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5, size = 20)) +
-  geom_vline(aes(xintercept = top.pcs), color="purple", size=1) +
-  ggtitle(paste0(SO@project.name, "\nElbowPlot"))        
-```
-
-## Run UMAP algorithm, nested on atlas coordinates
+## Run UMAP algorithm based on the layout obtained through the atlas integration
 
 ```{r UMAP-dataset}
 # Create 3-dimensional UMAP coordinates
@@ -1414,7 +1523,7 @@ umap_init <- umap_init + cbind(rnorm(nrow(umap_init),sd = noise_level),
                                rnorm(nrow(umap_init),sd = noise_level),
                                rnorm(nrow(umap_init),sd = noise_level))
 set.seed(general.seed)
-reduction.use <- "pca" # pca1 or harmony
+reduction.use <- "pca" # pca1
 tmp <- umap(X = Embeddings(SO[[reduction.use]])[colnames(SO), 1:top.pcs],
             init = umap_init,
             n_neighbors = nn,
@@ -1441,7 +1550,7 @@ set.seed(general.seed)
 umap_init <- umap_init + cbind(rnorm(nrow(umap_init),sd = noise_level),
                                rnorm(nrow(umap_init),sd = noise_level))
 set.seed(general.seed)
-reduction.use <- "pca" # pca1 or harmony
+reduction.use <- "pca" # pca1
 tmp <- umap(X = Embeddings(SO[[reduction.use]])[colnames(SO), 1:top.pcs],
             init = umap_init,
             n_neighbors = nn,
@@ -1459,7 +1568,47 @@ tmp <- umap(X = Embeddings(SO[[reduction.use]])[colnames(SO), 1:top.pcs],
 tmp2 <- 0*Embeddings(SO[["pca"]])[,1:2]
 tmp2[colnames(SO),] <- tmp$embedding
 SO[["umap2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP2d_", assay = DefaultAssay(SO))
+
+# Plot the celltypes on the umap2d embedding
+Idents(SO) <- SO@meta.data$celltype
+DimPlot(SO,
+        reduction = "umap2d",
+        pt.size = 1,
+        repel = TRUE,
+        label = TRUE,
+        label.size = 6,
+        cols = colors.celltype[levels(Idents(SO))]) +
+  ggtitle(paste0(dataset, " : cell identities")) +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text = element_blank(),
+        line = element_blank()) +
+        NoLegend()
 ```
+
+```{r plot-celltype-facets2, fig.height = 15}
+cellsData <- data.frame(SO@reductions[["umap2d"]]@cell.embeddings, SO@meta.data$celltype)
+colnames(cellsData) <- c(colnames(SO@reductions[["umap2d"]]@cell.embeddings), "celltype")
+
+ggplot(cellsData[c('UMAP2d_1', 'UMAP2d_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP2d_1,
+              y = UMAP2d_2)) +
+    geom_point( alpha = .4,
+                size  = .75,
+                color = "grey") +
+    geom_point( data = cellsData, # Now provide data including column for facetting
+                aes(color = celltype),
+                alpha = .5,
+                size  = 1.2) +
+    scale_fill_manual(values = colors.celltype[SO@meta.data$celltype], aesthetics = "color") +
+    facet_wrap(facets = vars(celltype),
+               ncol = 4) +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : cell identity facets")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+```
+
 
 <!-- ```{r save7} -->
 <!-- saveRDS(SO, file=file.path(rdsObjects, paste0("06_umap_2d3d_", SO@project.name, ".rds"))) -->
@@ -1468,40 +1617,6 @@ SO[["umap2d"]] <- CreateDimReducObject(embeddings = tmp2, key = "UMAP2d_", assay
 ```{r garbage-collec11, include=FALSE}
 rm(umap_init, tmp, tmp2)
 gc()
-```
-
-```{r show-umap2d, fig.show='hold'}
-Idents(SO) <- "celltype"
-
-plot1 <- DimPlot(SO,
-                 pt.size = 1,
-                 reduction = "umap2d",
-                 label = TRUE,
-                 label.size = 6,
-                 repel = TRUE,
-                 cols = colors.celltype[levels(Idents(SO))]) +
-  NoLegend() +
-  ggtitle(paste0(dataset, " cells in UMAP embbeding\nnested on atlas UMAP coordinates")) +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text = element_blank(),
-        # axis.ticks = element_blank()
-        line = element_blank())
-
-plot2 <- DimPlot(SO,
-                 pt.size = 1,
-                 reduction = "umap2d",
-                 cols = colors.celltype[levels(Idents(SO))],
-                 split.by = "celltype",
-                 ncol = 4) +
-  NoLegend() +
-  ggtitle(paste0(dataset, " cells in UMAP embbeding\nnested on atlas UMAP coordinates")) +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text = element_blank(),
-        # axis.ticks = element_blank()
-        line = element_blank())
-
-plot1
-plot2
 ```
 
 ```{r setup13, eval=TRUE, include=FALSE}
@@ -1530,9 +1645,7 @@ knitr::opts_chunk$set(
 resolutions <- seq(0.6, 1.6, 0.1)
 SO <- FindNeighbors(SO, dims = 1:top.pcs, verbose=FALSE)
 SO <- FindClusters(SO, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
-```
 
-```{r save8}
 saveRDS(SO, file=file.path(rdsObjects, paste0("07_clusters_", SO@project.name, ".rds")))
 ```
 
@@ -1576,8 +1689,8 @@ SO <- readRDS(file.path(rdsObjects, paste0("07_clusters_", dataset, ".rds")))
 ```{r setup16, eval=TRUE, include=FALSE}
 knitr::opts_chunk$set(
   # code evaluation
-  eval = FALSE,
-  echo = FALSE
+  eval = TRUE,
+  echo = TRUE
 )
 ```
 
@@ -1640,8 +1753,8 @@ markers.sign <- read.table(file.path(dataset.anFolder, paste0("markers_min.pct_l
 ```{r setup18, eval=TRUE, include=FALSE}
 knitr::opts_chunk$set(
   # code evaluation
-  eval = FALSE,
-  echo = FALSE
+  eval = TRUE,
+  echo = TRUE
 )
 ```
 
@@ -1717,7 +1830,7 @@ clustersColor <- setNames(hue_pal()(length(names(topMarkers))), names(topMarkers
 
 invisible( lapply( names( topMarkers), function(clusterName)
 {
-  cat("##### Cluster <span style='border-radius: 3px; border: 3px solid ", clustersColor[clusterName], "; padding:0px 2px'>", clusterName, "</span>\n");
+  cat("#### Cl. <span style='border-radius: 3px; border: 3px solid ", clustersColor[clusterName], "; padding:0px 2px'>", clusterName, "</span>\n");
   
   # Highlight cells of current cluster on a dimreduc plot
   highlightClusterPlot(clusterName, seuratObject = SO, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"));
@@ -1735,10 +1848,10 @@ invisible( lapply( names( topMarkers), function(clusterName)
 }))
 ```
 
-```{r cluster-featurePlot-markers}
-## FeaturePlot the genes of interest
-doFeaturePlot(SO, topNgenes)
-```
+<!-- ```{r cluster-featurePlot-markers} -->
+<!-- ## FeaturePlot the genes of interest -->
+<!-- doFeaturePlot(SO, topNgenes) -->
+<!-- ``` -->
 
 ### FeaturePlot of the genes of interest with cluster labels
 
@@ -1747,13 +1860,13 @@ doFeaturePlot(SO, topNgenes)
 doFeaturePlot(SO, goiList)
 ```
 
-### ViolinPlots of the markers {tabset .tabset-pills .tabset-fade}
+### ViolinPlots of the markers {.tabset .tabset-pills .tabset-fade}
 
 ```{r results='asis'}
 # with courtesy of Lionel Spinelli and Romain Fenouil
 invisible( lapply( names( topMarkers), function(clusterName)
 {
-  cat("##### Cl. <span style='border-radius: 3px; border: 3px solid ", clustersColor[clusterName], "; padding:0px 2px'>", clusterName, "</span>\n");
+  cat("#### Cl. <span style='border-radius: 3px; border: 3px solid ", clustersColor[clusterName], "; padding:0px 2px'>", clusterName, "</span>\n");
   
   # Remind cluster name in an empty figure to keep consistent alignment of panels between tabs
   plot( c( 0, 1), c( 0, 1), ann = F, bty = 'n', type = 'n', xaxt = 'n', yaxt = 'n');

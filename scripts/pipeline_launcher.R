@@ -26,8 +26,8 @@ option_list <- list(
                 help="if running multiple time points analysis, whether to merge the data,
                 otherwise, data will be integrated with Seurat integration process"),
     
-    make_option(c("-l", "--mito_low"), action="store", default=1.5, type='numeric',
-                help="lower threshold of mitochondrial expression percentage to filter out", metavar = "[0:99]"),
+#     make_option(c("-l", "--mito_low"), action="store", default=1.5, type='numeric',
+#                 help="lower threshold of mitochondrial expression percentage to filter out", metavar = "[0:99]"),
     
     make_option(c("-m", "--mito_high"), action="store", default=10, type='numeric',
                 help="", metavar = "[1:100]"),
@@ -35,8 +35,8 @@ option_list <- list(
     make_option(c("-q", "--ribo_low"), action="store", default=25, type='numeric',
                 help=""),
     
-    make_option(c("-r", "--ribo_high"), action="store", default=45, type='numeric',
-                help=""),
+#     make_option(c("-r", "--ribo_high"), action="store", default=45, type='numeric',
+#                 help=""),
     
     make_option(c("-f", "--min_feat"), action="store", default=200, type='integer',
                 help="minimum number of features detected in every cells"),
@@ -70,7 +70,7 @@ option_list <- list(
                 help="whether to compute scaling or not. If not mentionned in the command line,
                 it will not be done"),
     
-    make_option(c("-p", "--pca_npcs"), action="store", default=30, type='integer',
+    make_option(c("-p", "--pca_npcs"), action="store", default=50, type='integer',
                 help="number of PCs to compute for the Seurat function RunPCA"),
     
     make_option(c("--pca_print"), action="store", default=10, type='integer',
@@ -209,10 +209,10 @@ param.list <- list(
     dataset = opt$input_dataset,
     do.integ = opt$do_integ,
     do.merge = opt$do_merge,
-    mito.low = opt$mito_low,
+#     mito.low = opt$mito_low,
     mito.high = opt$mito_high,
     ribo.low = opt$ribo_low,
-    ribo.high = opt$ribo_high,
+#     ribo.high = opt$ribo_high,
     min.feat = opt$min_feat,
     min.cells = opt$min_cells,
     min.counts = opt$min_counts,
