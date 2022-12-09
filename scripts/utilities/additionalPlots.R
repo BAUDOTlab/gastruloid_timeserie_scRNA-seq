@@ -104,11 +104,6 @@ createRidgePlot <- function(SO, genesList){
 
 
 createHeatmapAnn <- function(SO, day = NULL){
-    if (is.null(day)){
-        title <- "Counts of atlas transfert identity labels\nfrom single datasets to combined dataset"
-    } else {
-        title <- paste0("Counts of atlas transfert identity labels from ", day, " dataset\nto the sames cells in the combined dataset")
-    }
     # create heatmap
     Idents(SO) <- SO@meta.data$day
     transition <- table(SO@meta.data[WhichCells(SO, idents = day), 'orig.celltype'], SO@meta.data[WhichCells(SO, idents = day), 'celltype'])
@@ -124,8 +119,5 @@ createHeatmapAnn <- function(SO, day = NULL){
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
         guides(fill = guide_colourbar(barwidth = 0.5,
                                       barheight = 20,
-                                      title = "Counts")) +
-        ggtitle(title) +
-        CenterTitle() +
-        labs(x = "Celltype annotation on the single datasets", y = paste0("Celltype annotation on the ", SO@project.name, " dataset"))
+                                      title = "Counts"))
 }

@@ -93,7 +93,13 @@ option_list <- list(
                 
 	make_option(c("-k", "--markers_number"), action="store", default=20, type='integer',
 				help="reduce the list of markers to the top [-k] for each cluster at the
-				[--selected_resolution]")
+				[--selected_resolution]"),
+	
+	make_option(c("-C", "--combine_meth"), action="store", default=NA, type='character',
+				help="indicate the way to combine the datasets. The value has to be one of
+				\"merged\", \"blkH\" to perform Harmony integration in one block, \"blkS\" to
+				perform Seurat integration in on block and \"seqS\" to perform sequential
+				Seurat integration")
 )
 
 
@@ -145,6 +151,7 @@ if (is.na(opt$input_dataset)){
     if (opt$merge){
         opt$do_integ <- FALSE
         opt$do_merge <- TRUE
+        opt$combine_meth <- "merged"
     } else {
         opt$do_integ <- TRUE
         opt$do_merge <- FALSE
@@ -227,12 +234,13 @@ param.list <- list(
     dblt.rate = opt$doublet_rate,
     res = opt$selected_resolution,
     algo.cluster = opt$algo_clustering,
-    top.markers = opt$markers_number
+    top.markers = opt$markers_number,
+    combine.meth = opt$combine_meth
 )
 
 
-basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
-#basePath <- "/shared/projects/XX/XX" # IFB server
+#basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
+basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
 
 # multi TP analysis ?
 if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
@@ -247,7 +255,7 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
             # YES
             
             combination <- if (opt$do_integ) "integration" else "merge"
-            rmarkdown::render("combined_data_pipeline.Rmd", params = param.list, output_file = paste0("combinedData_", opt$analysis_name, "_", combination, "_", opt$input_dataset, ".html"))
+            rmarkdown::render("combined_data_pipeline.Rmd", params = param.list, output_file = paste0("combinedData_", opt$analysis_name, "_merged_", opt$input_dataset, ".html"))
         } else {
             # NO
             
@@ -323,4 +331,5 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
 
 # l <- list(a="1", b=1, c=list(a="1", b=1))
 # yaml::write_yaml(l, "list.yaml")
+
 
