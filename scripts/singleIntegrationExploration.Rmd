@@ -1,0 +1,460 @@
+---
+author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+    html_document:
+        theme:
+            bootswatch: yeti
+        toc: yes
+        toc_float:
+          collapsed: false
+          smooth_scroll: true
+        number_sections: yes
+        df_print: kable
+        code_folding: hide
+    pdf_document:
+        number_sections: yes
+        toc: yes
+        toc_depth: 3
+        keep_tex: no
+params:
+    dataset:
+        value: NA
+        choices: [lab_day_04, lab_day_05, lab_day_05bis, lab_day_06, lab_day_11]
+title: |
+  | Protocole 1.2:
+  | `r params$dataset` integration to the atlas exploration
+---
+
+
+<!-- Javascript for zooming on figures (adapted from: https://stackoverflow.com/questions/40401680) -->
+
+<!-- Jquery import conflicts with DT::datatable so needs to be commented here -->
+<!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script> -->
+
+<style>
+.zoomDiv {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 50;
+  transform: translate(-50%, -50%);
+  background-color: #FFFFFF;
+  box-shadow: 0px 0px 50px #888888;
+  width: fit-content;
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+}
+
+.zoomImg {
+  width: 150%;
+}
+</style>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    $('body').prepend("<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>");
+    // onClick for all img except the zoomed one and link ones (filter)
+    // use 'img.zoom' and out.extra='class=\"zoom\"' in chunk to specify manually which chunk images can be zoomed
+    $('img:not(.zoomImg)').filter(':not(a *)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src'));
+      $('.zoomDiv').show();
+    });
+    // onClick function for hiding div
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').hide();
+    });
+  });
+</script>
+
+```{r setup, include=FALSE, eval=TRUE}
+options(knitr.purl.inline = TRUE)
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  
+  # text output
+  echo = TRUE,
+  results = 'hold',
+  warning = FALSE,
+  error = FALSE,
+  message = FALSE,
+  strip.white = TRUE,
+  
+  # code decoration
+  #tidy = TRUE,
+  tidy.opts = list(width.cutoff = 90),
+  comment = '',
+  attr.output='.numberLines',
+  
+  # plots
+  #fig.path = "figure/",      # is set later, in chunk setup2
+  fig.show = "asis",         # tuned to "hold" in multiple plots chunk
+  dev = c('png', 'pdf'),
+  fig.width = 12,
+  fig.height = 12,
+  #fig.asp=1.3               # fig.height = fig.width * fig.asp
+  #out.extra = 'style="border:5px solid orange"'     # orange box arround plots
+  fig.align = "center"       # should be tuned to default in multiple plots chunk
+)
+```
+
+```{r setupAnalysis, eval=TRUE, include=FALSE}
+library(Seurat)
+library(dplyr)
+library(cowplot)
+library(ggplot2)
+library(patchwork)
+
+bindingIsLocked("params", env = .GlobalEnv)
+unlockBinding("params", env = .GlobalEnv)
+attach(params)
+
+colors.table <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/inputData/InputTables/ClusterColors.tsv", sep="\t", header=T, comment.char="", as.is=T)
+colors.celltype <- setNames(colors.table$blind_friendly[!is.na(colors.table$transferred_identity)], colors.table$transferred_identity[!is.na(colors.table$transferred_identity)])
+colors.stage <- setNames(c("#bb573b", "#ac9d3e", "#5aaf6a", "#7564b9", "#b94c84", "#ba4b7d", "#90b03d", "#60a756", "#45c097", "#5e8bd5", "#6d71d8", "#573585", "#bd80d5", "#b853a2", "#ba4b7d"), c("Day_04", "Day_05", "Day_06", "Day_07", "Day_10", "Day_11", "E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5"))
+```
+
+
+# Load data
+
+```{r loadAtlas}
+do.scale <- FALSE
+pca.npcs <- 50
+top.pcs <- 30
+general.seed <- 17
+
+SO <- readRDS(paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/rdsObjects/03_WF_onSinglets_", dataset, ".rds"))
+atlas.subset <- readRDS("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/inputData/atlas/atlas_preprocessed.rds")
+celltypesPred <- read.table(
+    paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/", dataset, "/cellIdentitiesPredictions_final_", dataset, ".csv"),
+    sep = ",", header = TRUE)
+```
+
+# Perform integration
+
+```{r results='asis', out.width="50%"}
+features <- SelectIntegrationFeatures(object.list = list(SO, atlas.subset))
+anchors <- FindIntegrationAnchors(object.list = list(SO, atlas.subset), anchor.features = features)
+SO.align <- IntegrateData(anchorset = anchors)
+
+SO.align@project.name <- paste0(dataset, "_with_atlas")
+DefaultAssay(SO.align) <- "integrated"
+
+SO.align <- ScaleData(SO.align, assay = DefaultAssay(SO.align), do.scale=do.scale, verbose = FALSE)
+SO.align <- RunPCA(SO.align, npcs = pca.npcs, verbose = FALSE)
+SO.align <- RunUMAP(SO.align, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
+SO.align@meta.data[SO.align@meta.data$model == "Gastruloids", "celltype"] <- celltypesPred$predicted.id
+```
+
+
+# Segregation by model
+
+```{r model-segregation}
+Idents(SO.align) <- "model"
+cellsData <- data.frame(SO.align@reductions[["umap"]]@cell.embeddings, SO.align@meta.data$model)
+colnames(cellsData) <- c(colnames(SO.align@reductions[["umap"]]@cell.embeddings), "model")
+pmodels <- ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+       aes( x = UMAP_1,
+            y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData, # Now provide data including column for facetting
+                aes(color = model),
+                alpha = .5,
+                size  = 1.2) +
+    facet_wrap(facets = vars(factor(model, levels = c("Embryos", "Gastruloids"))),
+               ncol = 2) +
+    theme_void() +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : atlas cells (as Embryos)\n and gastruloids after integration")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+
+pmodels
+```
+
+
+# Overview of the atlas and data integration
+
+```{r overview}
+Idents(SO.align) <- "model"
+cellsData <- data.frame(SO.align@reductions[["umap"]]@cell.embeddings, SO.align@meta.data$model, SO.align@meta.data$day)
+colnames(cellsData) <- c(colnames(SO.align@reductions[["umap"]]@cell.embeddings), "model", "day")
+
+pover1 <- ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$model == "Embryos",], # Now provide data including column for facetting
+                aes(color = day),
+                alpha = .5,
+                size  = 1.2) +
+    scale_fill_manual(values = colors.stage[cellsData[cellsData$model == "Embryos", "day"]],
+                      aesthetics = "color",
+                      breaks = sort(levels(as.factor(cellsData[cellsData$model == "Embryos", "day"]))),
+                      name = "Stages") +
+    theme_void() +
+    ggtitle("Atlas stages") +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank(),
+          legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=8, alpha = 1)))
+
+cellsData <- data.frame(SO.align@reductions[["umap"]]@cell.embeddings, SO.align@meta.data$model, SO.align@meta.data$celltype)
+colnames(cellsData) <- c(colnames(SO.align@reductions[["umap"]]@cell.embeddings), "model", "celltype")
+
+pover2 <- ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$model == "Embryos",], # Now provide data including column for facetting
+                aes(color = celltype),
+                alpha = .5,
+                size  = 1.2) +
+    scale_fill_manual(values = colors.celltype[SO.align@meta.data$celltype], aesthetics = "color") +
+    theme_void() +
+    NoLegend() +
+    ggtitle("Atlas celltypes overview") +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+
+pover3 <- ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$model == "Gastruloids",], # Now provide data including column for facetting
+                aes(color = celltype),
+                alpha = .5,
+                size  = 1.2) +
+    scale_fill_manual(values = colors.celltype[SO.align@meta.data$celltype], aesthetics = "color") +
+    theme_void() +
+    NoLegend() +
+    ggtitle(paste0(dataset, " predicted celltypes from the atlas transfer")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+
+layout <- "
+AAABB
+AAACC
+"
+
+pover1 + pover2 + pover3 +
+    plot_layout(design = layout) +
+    plot_annotation(title = paste0(
+        "Visualization of the timestamps and the celltypes\nof the integrated ", dataset, " data with the atlas"),
+        theme = theme(plot.title = element_text(hjust = 0.5))
+        )
+```
+
+# Visualisations {.tabset  .tabset-pills .tabset-fade}
+
+## Atlas stages
+
+### Overview
+
+```{r stagesAtlas-all}
+pover1
+```
+
+### Facets
+
+```{r stagesAtlas-facets}
+cellsData <- data.frame(SO.align@reductions[["umap"]]@cell.embeddings, SO.align@meta.data$model, SO.align@meta.data$day)
+colnames(cellsData) <- c(colnames(SO.align@reductions[["umap"]]@cell.embeddings), "model", "day")
+stageF <- ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+       aes( x = UMAP_1,
+            y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$model == "Embryos",], # Now provide data including column for facetting
+                aes(color = day),
+                alpha = .5,
+                size  = 1.2) +
+    scale_fill_manual(values = colors.stage[cellsData[cellsData$model == "Embryos", "day"]],
+                      aesthetics = "color",
+                      breaks = sort(levels(as.factor(cellsData[cellsData$model == "Embryos", "day"]))),
+                      name = "Stages") +
+    facet_wrap(facets = vars(day),
+               ncol = 3) +
+    theme_void() +
+    NoLegend() +
+    ggtitle("Atlas stages") +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+
+stageF
+```
+
+## Atlas celltypes
+
+### Overview
+
+```{r celltypesAtlas-all}
+pover2
+```
+
+### Facets
+
+Here only the common celltypes with the data are represented in the facets.
+
+```{r celltypesAtlas-facets, fig.height = 16}
+cellsData <- data.frame(SO.align@reductions[["umap"]]@cell.embeddings, SO.align@meta.data$model, SO.align@meta.data$celltype)
+colnames(cellsData) <- c(colnames(SO.align@reductions[["umap"]]@cell.embeddings), "model", "celltype")
+
+celltypeAtlasF <- ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+       aes( x = UMAP_1,
+            y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$celltype %in% cellsData[cellsData$model == "Gastruloids", "celltype"] & cellsData$model == "Embryos",], # Now provide data including column for facetting
+                aes(color = celltype),
+                alpha = .5,
+                size  = 1.2) +
+    scale_fill_manual(values = colors.celltype[SO.align@meta.data$celltype], aesthetics = "color") +
+    facet_wrap(facets = vars(celltype),
+               ncol = 3) +
+    theme_void() +
+    NoLegend() +
+    ggtitle("Atlas celltypes overview") +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+
+celltypeAtlasF
+```
+
+
+## Dataset celltypes
+
+### Overview
+
+```{r celltypesData-all}
+celltypeDataAll <- ggplot(cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+         aes( x = UMAP_1,
+              y = UMAP_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$model == "Gastruloids",], # Now provide data including column for facetting
+                aes(color = celltype),
+                alpha = .5,
+                size  = 1.2) +
+    scale_fill_manual(values = colors.celltype[SO.align@meta.data$celltype], aesthetics = "color") +
+    theme_void() +
+    NoLegend() +
+    ggtitle(paste0(dataset, " predicted celltypes from the atlas transfer")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+
+celltypeDataAll
+```
+
+### Facets {.tabset .tabset-pills .tabset-fade}
+
+Here,  I display all the celltypes present in the dataset, either on atlas and dataset cells.
+
+```{r celltypesData-facet, results='asis'}
+invisible(sapply(levels(as.factor(SO@meta.data$celltype)), function(act)
+{
+    cat("#### ", act, "\n")
+    
+    celltypeDataF <- ggplot(
+        cellsData[c('UMAP_1', 'UMAP_2')], # Omit the column used for facetting to get all points repeated in all facets
+        aes( x = UMAP_1,
+             y = UMAP_2)) +
+        geom_point( alpha = .4,
+                    size  = 1,
+                    color = "grey") +
+        geom_point( data = cellsData[cellsData$celltype == act, ], # Now provide data including column for facetting
+                    aes(color = celltype),
+                    alpha = .5,
+                    size  = 1.2) +
+        scale_fill_manual(values = colors.celltype[SO.align@meta.data$celltype], aesthetics = "color") +
+        facet_wrap(facets = vars(model),
+                   ncol = 2) +
+        theme_void() +
+        NoLegend() +
+        ggtitle(act) +
+        theme(plot.title = element_text(hjust = 0.5),
+              axis.text = element_blank(),
+              line = element_blank())
+    
+    print(celltypeDataF)
+    
+    cat(" \n \n") # Required for '.tabset'
+}))
+```
+
+
+## Celltypes profile
+
+```{r celltypesProfile}
+cellsData <- data.frame(SO.align@reductions[["umap"]]@cell.embeddings, SO.align@meta.data$model, SO.align@meta.data$celltype, SO.align@meta.data$day)
+colnames(cellsData) <- c(colnames(SO.align@reductions[["umap"]]@cell.embeddings), "model", "celltype", "day")
+
+transition <- table(cellsData$celltype,
+                    cellsData$day,
+                    cellsData$model)
+dt <- as.data.frame(transition)
+dt[dt == 0] <- NA
+names(dt) <- c("celltype", "stage", "model", "freq")
+
+p3 <- ggplot(dt[(dt$model == "Embryos" & dt$stage != unique(SO@meta.data$day)[1]) ,], aes(stage, celltype, fill=freq)) +
+    geom_tile() +
+    geom_text(aes(label = freq), color="black", size = 2.5, fontface="bold") +
+    #scale_color_manual(values = c(NA, "black"), na.value = NA) +
+    coord_fixed() +
+    scale_fill_gradient(low = "white", high = "pink", na.value="white") +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    guides(fill = guide_colourbar(barwidth = 0.5,
+                                  barheight = 10,
+                                  title = "Nb of cells")) +
+    ggtitle("Number of cells by stage for each celltype") +
+    CenterTitle() +
+    labs(x = "Stages", y = paste0("Celltypes"))
+
+
+p4 <- ggplot(dt[dt$model == "Gastruloids" & dt$stage == unique(SO@meta.data$day)[1],], aes(stage, celltype, fill=freq)) +
+    geom_tile() +
+    geom_text(aes(label = freq), color="black", size = 2.5, fontface="bold") +
+    #scale_color_manual(values = c(NA, "black"), na.value = NA) +
+    coord_fixed() +
+    scale_fill_gradient(low = "white", high = "pink", na.value="white") +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    guides(fill = guide_colourbar(barwidth = 0.5,
+                                  barheight = 10,
+                                  title = "Nb of cells")) +
+    ggtitle("Number of cells by stage for each celltype") +
+    CenterTitle() +
+    labs(x = "Stages", y = paste0("Celltypes"))
+
+p3 + p4
+```
+
+<!-- To render  -->
+
+<!-- for i in lab_day_04 lab_day_05 lab_day_06 lab_day_11; do nohup Rscript -e "rmarkdown::render('singleIntegrationExploration.Rmd', params = list( dataset = '$i'), output_file = './singleIntegrationExploration_ciml5_$i.html')" ; done & -->
+
+
+
+
+
+
