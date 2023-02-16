@@ -108,14 +108,16 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setupAnalysis, eval=TRUE, include=FALSE}
-library(Seurat)
-library(dplyr)
-library(ggplot2)
-library(tibble)
-library(scales)
-library(patchwork)
-library(kableExtra)
-library(DT)
+suppressPackageStartupMessages(library(Seurat))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(tibble))
+suppressPackageStartupMessages(library(scales))
+suppressPackageStartupMessages(library(patchwork))
+suppressPackageStartupMessages(library(kableExtra))
+suppressPackageStartupMessages(library(DT))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(gridExtra))
 
 source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/extract_topn.R")
 source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/add_dominantMetadata.R")
@@ -173,17 +175,23 @@ pover1 <- LabelClusters(pover1, id = "ident",  fontface = "bold", size = 5)
 Idents(SO) <- SO@meta.data$celltype
 pover2 <- DimPlot(
     SO,
-    reduction = "umap",
+    reduction = "umap2d",
     pt.size = 0.8,
     label = FALSE) +
     ggtitle(paste0(dataset, " : celltype identities")) +
+    NoLegend() +
     theme(plot.title = element_text(hjust = 0.5),
           axis.text = element_blank(),
           line = element_blank())
 #pover2 <- LabelClusters(pover2, id = "ident",  fontface = "bold", size = 5)
 
+p1 <- DimPlot(SO, reduction = "umap2d")
+p2 <- cowplot::get_legend(p1)
+
 pover1
 pover2
+grid.newpage()
+grid.draw(p2)
 ```
 
 # Differential expression of the cluster 18 against the cluster 16 {.tabset  .tabset-pills .tabset-fade}
