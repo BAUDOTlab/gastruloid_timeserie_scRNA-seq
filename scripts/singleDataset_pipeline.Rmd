@@ -710,9 +710,9 @@ predictions <- TransferData(anchorset = anchors, refdata = atlas.subset$celltype
                             dims = 1:top.pcs)
 SO <- AddMetaData(SO, metadata = predictions[,"predicted.id"], col.name = "celltype_DF")
 
-write.table(x = predictions, file = file.path(dataset.anFolder,
-                                               paste0("cellIdentitiesPredictions_DF_", 
-                                                      dataset, ".csv")), sep = ",", row.names = F, col.names = T)
+# write.table(x = predictions, file = file.path(dataset.anFolder,
+#                                                paste0("cellIdent_Predictions_DF_", 
+#                                                       dataset, ".csv")), sep = ",", row.names = F, col.names = T)
 
 rm(predictions)
 invisible(gc())
@@ -970,7 +970,6 @@ knitr::opts_chunk$set(
 ```{r restart3}
 SOsing <- readRDS(file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
 atlas.subset <- readRDS(file.path(atlas.folder, "atlas_preprocessed.rds"))
-var.feats.dataset <- readRDS(file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
 ```
 
 ```{r setup8, eval=TRUE, include=FALSE}
@@ -999,8 +998,8 @@ predictions <- TransferData(anchorset = anchors, refdata = atlas.subset$celltype
 SOsing <- AddMetaData(SOsing, metadata = predictions[,"predicted.id"], col.name = 'celltype')
 
 write.table(x = predictions, file = file.path(dataset.anFolder,
-                                               paste0("cellIdentitiesPredictions_final_", 
-                                                      dataset, ".csv")), sep = ",", row.names = F, col.names = T)
+                                               paste0("cellIdent_Predictions_singleTP_", 
+                                                      dataset, ".csv")), sep = ",", row.names = T, col.names = T)
 
 rm(predictions)
 invisible(gc())
@@ -1030,8 +1029,7 @@ knitr::opts_chunk$set(
 ```{r restart4}
 SOsing <- readRDS(file.path(rdsObjects, paste0("03_WF_onSinglets_", dataset, ".rds")))
 atlas.subset <- readRDS(file.path(atlas.folder, "atlas_preprocessed.rds"))
-var.feats.dataset <- readRDS(file.path(rdsObjects, paste0("var.feats.dataset_", dataset, ".rds")))
-predictions <- read.table(file.path(dataset.anFolder, paste0("cellIdentitiesPredictions_final_", dataset, ".csv")), sep = ",", header = T)
+predictions <- read.table(file.path(dataset.anFolder, paste0("cellIdent_Predictions_singleTP_", dataset, ".csv")), sep = ",", header = T)
 SOsing <- AddMetaData(SOsing, metadata = predictions[,"predicted.id"], col.name = "celltype")
 
 rm(predictions)
