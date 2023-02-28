@@ -1,0 +1,350 @@
+---
+author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+    html_document:
+        theme:
+            bootswatch: yeti
+        toc: yes
+        toc_float:
+          collapsed: false
+          smooth_scroll: true
+        number_sections: yes
+        df_print: kable
+        code_folding: hide
+    pdf_document:
+        number_sections: yes
+        toc: yes
+        toc_depth: 3
+        keep_tex: no
+title: |
+  | lab_day_11 : 
+  | specific cardiomyocytes markers
+---
+
+
+<!-- Javascript for zooming on figures (adapted from: https://stackoverflow.com/questions/40401680) -->
+
+<!-- Jquery import conflicts with DT::datatable so needs to be commented here -->
+<!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script> -->
+
+<style>
+.zoomDiv {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 50;
+  transform: translate(-50%, -50%);
+  background-color: #FFFFFF;
+  box-shadow: 0px 0px 50px #888888;
+  width: fit-content;
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+}
+
+.zoomImg {
+  width: 150%;
+}
+</style>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    $('body').prepend("<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>");
+    // onClick for all img except the zoomed one and link ones (filter)
+    // use 'img.zoom' and out.extra='class=\"zoom\"' in chunk to specify manually which chunk images can be zoomed
+    $('img:not(.zoomImg)').filter(':not(a *)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src'));
+      $('.zoomDiv').show();
+    });
+    // onClick function for hiding div
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').hide();
+    });
+  });
+</script>
+
+```{r setup, include=FALSE, eval=TRUE}
+options(knitr.purl.inline = TRUE)
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  
+  # text output
+  echo = TRUE,
+  results = 'hold',
+  warning = FALSE,
+  error = FALSE,
+  message = FALSE,
+  strip.white = TRUE,
+  
+  # code decoration
+  #tidy = TRUE,
+  tidy.opts = list(width.cutoff = 90),
+  comment = '',
+  attr.output='.numberLines',
+  
+  # plots
+  #fig.path = "figure/",      # is set later, in chunk setup2
+  fig.show = "asis",         # tuned to "hold" in multiple plots chunk
+  dev = c('png', 'pdf'),
+  fig.width = 8,
+  fig.height = 8,
+  #fig.asp=1.3               # fig.height = fig.width * fig.asp
+  #out.extra = 'style="border:5px solid orange"'     # orange box arround plots
+  fig.align = "center"       # should be tuned to default in multiple plots chunk
+)
+```
+
+```{r setup2, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  
+  # figures
+  fig.path = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/figures/"
+)
+```
+
+```{r setupAnalysis, eval=TRUE, include=FALSE}
+suppressPackageStartupMessages(library(Seurat))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(tibble))
+suppressPackageStartupMessages(library(scales))
+suppressPackageStartupMessages(library(patchwork))
+suppressPackageStartupMessages(library(kableExtra))
+suppressPackageStartupMessages(library(DT))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(gridExtra))
+
+source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/extract_topn.R")
+source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/add_dominantMetadata.R")
+source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/00_generalDeps.R")
+
+dataset <- "lab_day_11"
+
+colors.table <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/inputData/InputTables/ClusterColors.tsv", sep="\t", header=T, comment.char="", as.is=T)
+colors.celltype <- setNames(colors.table$blind_friendly[!is.na(colors.table$transferred_identity)], colors.table$transferred_identity[!is.na(colors.table$transferred_identity)])
+colors.stage <- setNames(c("#bb573b", "#ac9d3e", "#5aaf6a", "#7564b9", "#b94c84", "#ba4b7d", "#90b03d", "#60a756", "#45c097", "#5e8bd5", "#6d71d8", "#573585", "#bd80d5", "#b853a2", "#ba4b7d"), c("Day_04", "Day_05", "Day_06", "Day_07", "Day_10", "Day_11", "E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5"))
+```
+
+
+# Context
+
+```{r loadData}
+do.scale <- FALSE
+pca.npcs <- 50
+top.pcs <- 30
+general.seed <- 17
+top.markers <- 10
+
+SO <- readRDS("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/rdsObjects/03_WF_onSinglets_lab_day_11.rds")
+celltypes <- read.table(
+    file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/cellIdentitiesPredictions_final_lab_day_11.csv",
+    sep = ",",
+    header = TRUE)
+umap2d <- read.table(
+    file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/final_umap2Dcoordinates_lab_day_11.csv",
+    sep = ",",
+    header = TRUE)
+SO[["umap2d"]] <- CreateDimReducObject(embeddings = as.matrix(umap2d), key = "UMAP2d_")
+SO <- AddMetaData(SO, metadata = celltypes$predicted.id, col.name = "celltype")
+```
+
+
+```{r overview, out.width='50%', fig.show='hold'}
+clusterResName <- "RNA_snn_res.1"
+Idents(SO) <- clusterResName
+clustersColor <- setNames(hue_pal()(length(levels(SO@meta.data[,clusterResName]))), levels(SO@meta.data[,clusterResName]))
+pover1 <- DimPlot(
+    SO,
+    reduction = "umap2d",
+    pt.size = 0.8,
+    label = FALSE,
+    cols = clustersColor[levels(Idents(SO))]) +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : clusters at resolution 1")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+pover1 <- LabelClusters(pover1, id = "ident",  fontface = "bold", size = 5)
+
+
+Idents(SO) <- SO@meta.data$celltype
+pover2 <- DimPlot(
+    SO,
+    reduction = "umap2d",
+    pt.size = 0.8,
+    label = FALSE) +
+    ggtitle(paste0(dataset, " : celltype identities")) +
+    NoLegend() +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+#pover2 <- LabelClusters(pover2, id = "ident",  fontface = "bold", size = 5)
+
+p1 <- DimPlot(SO, reduction = "umap2d")
+p2 <- cowplot::get_legend(p1)
+
+pover1
+pover2
+grid.newpage()
+grid.draw(p2)
+```
+
+# Subset to cluster 16 {.tabset  .tabset-pills .tabset-fade}
+
+```{r dimplot-16, out.width='50%'}
+cellsData <- data.frame(SO@reductions[["umap2d"]]@cell.embeddings, SO@meta.data$RNA_snn_res.1)
+colnames(cellsData) <- c(colnames(SO@reductions[["umap2d"]]@cell.embeddings), "cluster")
+
+fullPlot <- ggplot(cellsData[c('UMAP2d_1', 'UMAP2d_2')], # Omit the column used for facetting to get all points repeated in all facets
+       aes( x = UMAP2d_1,
+            y = UMAP2d_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$cluster %in% c(16),], # Now provide data including column for facetting
+                aes(color = cluster),
+                size  = 1.2) +
+    scale_fill_manual(values = clustersColor[c(16)], aesthetics = "color") +
+    theme_void() +
+    ggtitle(paste0(dataset, " : cluster 16")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank(),
+          legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=8, alpha = 1))) +
+    NoLegend()
+fullPlot
+```
+
+```{r}
+cl16 <- subset(SO, cells = rownames(SO@meta.data[which(SO@meta.data$RNA_snn_res.1 == 16),]))
+cellsData <- data.frame(cl16@reductions[["umap2d"]]@cell.embeddings, cl16@meta.data$RNA_snn_res.1)
+colnames(cellsData) <- c(colnames(cl16@reductions[["umap2d"]]@cell.embeddings), "cluster")
+
+cluster16plot <- ggplot(cellsData[c('UMAP2d_1', 'UMAP2d_2')], # Omit the column used for facetting to get all points repeated in all facets
+       aes( x = UMAP2d_1,
+            y = UMAP2d_2)) +
+    geom_point( data = cellsData[cellsData$cluster %in% c(16),], # Now provide data including column for facetting
+                aes(color = cluster),
+                size  = 1.2) +
+    scale_fill_manual(values = clustersColor[c(16)], aesthetics = "color") +
+    theme_void() +
+    ggtitle(paste0(dataset, " : zoom on the cluster 16")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank(),
+          legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=8, alpha = 1))) +
+    NoLegend()
+
+cluster16plot
+```
+
+## Expressed factors : Tbx1 and Pax3 {.tabset .tabset-pills .tabset-fade}
+
+### Table
+
+```{r}
+# create metadata for expression of Tbx1
+cl16@meta.data["Tbx1+"] <- cl16@assays$RNA@data["Tbx1",] != 0
+# create metadata for expression of Pax3
+cl16@meta.data["Pax3+"] <- cl16@assays$RNA@data["Pax3",] != 0
+# Create a table
+coExprMtx <- as.data.frame.matrix(table(cl16@meta.data$`Tbx1+`, cl16@meta.data$`Pax3+`))
+coExprMtx %>%
+    knitr::kable(caption = "Coexpression of the genes *Tbx1* and *Pax3* ?", 
+                 align = "c") %>% 
+    kable_paper(full_width = F) %>%
+    add_header_above(c(" " = 1, "Pax3+" = 2)) %>%
+    pack_rows("Tbx1+", 1, 2)
+```
+
+<!-- ### DimPlot -->
+
+```{r}
+# Create a plot
+cellsData <- data.frame(cl16@reductions[["umap2d"]]@cell.embeddings, cl16@meta.data$`Tbx1+`, cl16@meta.data$`Pax3+`)
+colnames(cellsData) <- c(colnames(cl16@reductions[["umap2d"]]@cell.embeddings), "Tbx1+", "Pax3+")
+
+geneCol <- hue_pal()(2)
+cluster16plot <- ggplot(cellsData[c('UMAP2d_1', 'UMAP2d_2')], # Omit the column used for facetting to get all points repeated in all facets
+       aes( x = UMAP2d_1,
+            y = UMAP2d_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$`Tbx1+` == TRUE,], # Now provide data including column for facetting
+                aes(color = "Tbx1+"),
+                size  = 1.2) +
+    geom_point( data = cellsData[cellsData$`Pax3+` == TRUE,], # Now provide data including column for facetting
+                aes(color = "Pax3+"),
+                size  = 1.2) +
+    scale_fill_manual(values = geneCol, aesthetics = "color") +
+    theme_void() +
+    ggtitle(paste0(dataset, " : cluster 16")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank(),
+          legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=8, alpha = 1)))
+cluster16plot
+
+# leg2 <- cowplot::get_legend(cluster16plot)
+# cluster16plot + NoLegend()
+# grid.newpage()
+# grid.draw(leg2)
+```
+
+
+# Heapmat with hierarchical clustering
+
+```{r}
+library(pheatmap)
+dim(cl16@assays$RNA@data)
+
+"Tbx1" %in% rownames(cl16@assays$RNA@data[rowMeans(cl16@assays$RNA@data) > 0.05, ])
+dim(cl16@assays$RNA@data[rowMeans(cl16@assays$RNA@data) > 0.05, ])
+cl16expr <- cl16@assays$RNA@data[rowMeans(cl16@assays$RNA@data) > 0.05, ]
+
+cl16marker <- ifelse(cl16@meta.data$`Tbx1+` == TRUE, "Tbx1", ifelse(cl16@meta.data$`Pax3+` == TRUE, "Pax3", "none"))
+
+heatmap <- pheatmap(cl16expr, show_rownames = FALSE, show_colnames = FALSE, cutree_rows = 2)
+heat_cluster <- as.data.frame(cutree(heatmap$tree_row, k = 2))
+colnames(heat_cluster) <- "treeCluster"
+
+rownames(heat_cluster)[which(heat_cluster$treeCluster==2)]
+```
+
+Observation on the heatmap  
+*(columns: cells, rows: features)*
+The cells do not seem cluster. The pattern of expression of the cells looks
+equivalent among all cells.
+
+Observation of the clusters with highest expression
+The gene list of the most expressed genes in the cluster 16 are mainly related
+to the ribosomal acitvity (`Rp(ls)`).
+
+# Supp : FeaturePlots of the genes of interest of Day_11
+
+```{r featurePlot-18versus16, out.width='20%', fig.align='default'}
+genes <- c("Myod1", "Myog", "Myl7", "Sox7", "Cald1", "Acta2", "Vsnl1", 
+           "Nppa", "Itga6", "Myh6", "Myl2", "Myh7", "Myl3",
+           "Tbx18", "Wt1", "Mab21l2", "Myf5", "Pax7", "Met", "Myh3",
+           "Isl1", "Pitx2", "Msc", "Tbx1", "Tcf21",
+           "Pax3", "Meox1", "Tcf15", "Itm2a")
+table(genes %in% rownames(cl16))
+invisible( lapply( genes, function(featureName) {
+    print( FeaturePlot( cl16, features = featureName, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"), order = TRUE, min.cutoff = "q1", max.cutoff = "q99") +
+               theme_void() +
+               NoLegend() +
+               CenterTitle())
+               # theme( axis.title.x = element_blank(),
+               #        axis.title.y = element_blank(),
+               #        legend.position = "none"))
+}))
+```
