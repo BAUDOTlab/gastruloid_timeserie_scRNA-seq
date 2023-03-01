@@ -1,0 +1,4 @@
+To run the file runURD_parallel.txt
+> parallel -j 2 < runURD_parallel.txt &> output_parallel.txt &
+
+The parameter "-j" is for the number of parallel jobs.
