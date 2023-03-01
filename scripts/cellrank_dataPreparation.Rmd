@@ -1,0 +1,256 @@
+---
+author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+    html_document:
+        theme:
+            bootswatch: yeti
+        toc: yes
+        toc_float:
+          collapsed: false
+          smooth_scroll: true
+        number_sections: yes
+        df_print: kable
+        code_folding: hide
+    pdf_document:
+        number_sections: yes
+        toc: yes
+        toc_depth: 3
+        keep_tex: no
+params:
+    dataset:
+        value: "lab_4_days"
+    analysis.name:
+        value: "ciml5"
+    combine.meth:
+        value: "merged"
+    general.seed: 17
+title: |
+  | Protocole 3:
+  | Data preparation for CellRank analysis
+---
+
+<!-- Javascript for zooming on figures (adapted from: https://stackoverflow.com/questions/40401680) -->
+
+<!-- Jquery import conflicts with DT::datatable so needs to be commented here -->
+<!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script> -->
+
+<style>
+.zoomDiv {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 50;
+  transform: translate(-50%, -50%);
+  background-color: #FFFFFF;
+  box-shadow: 0px 0px 50px #888888;
+  width: fit-content;
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+}
+
+.zoomImg {
+  width: 150%;
+}
+</style>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    $('body').prepend("<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>");
+    // onClick for all img except the zoomed one and link ones (filter)
+    // use 'img.zoom' and out.extra='class=\"zoom\"' in chunk to specify manually which chunk images can be zoomed
+    $('img:not(.zoomImg)').filter(':not(a *)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src'));
+      $('.zoomDiv').show();
+    })
+    // onClick function for hiding div
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').hide();
+    })
+  })
+</script>
+
+
+
+```{r setup1, eval=TRUE, include=FALSE}
+options(knitr.purl.inline = TRUE)
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  
+  # text output
+  echo = TRUE,
+  results = 'hold',
+  warning = FALSE,
+  error = FALSE,
+  message = FALSE,
+  strip.white = TRUE,
+  
+  # code decoration
+  #tidy = TRUE,
+  tidy.opts = list(width.cutoff = 90),
+  comment = '',
+  attr.output='.numberLines',
+  
+  # plots
+  #fig.path = "figure/",      # is set later, in chunk setup2
+  fig.show = "asis",         # tuned to "hold" in multiple plots chunk
+  dev = c('png', 'pdf'),
+  fig.width = 8,
+  fig.height = 8,
+  #fig.asp=1.3               # fig.height = fig.width * fig.asp
+  #out.extra = 'style="border:5px solid orange"'     # orange box arround plots
+  fig.align = "center"       # should be tuned to default in multiple plots chunk
+)
+```
+
+```{r load-lib, include=FALSE}
+library(dplyr)
+library(Matrix)
+library(Seurat)
+library(ggplot2)
+library(reticulate)
+library(scmap)
+library(RColorBrewer)
+library(DoubletFinder)
+library(stringr)
+library(kableExtra)
+library(formattable)
+library(knitr)
+library(SingleCellExperiment)
+library(BiocGenerics)
+library(scales)
+library(formatR)
+library(uwot)
+library(DT)
+library(patchwork)
+library(ggrepel)
+```
+
+```{r get-params, include=FALSE}
+bindingIsLocked("params", env = .GlobalEnv)
+unlockBinding("params", env = .GlobalEnv)
+attach(params)
+set.seed(general.seed)
+```
+
+# Global settings {.tabset .tabset-pills .tabset-fade}
+
+## Directories
+
+Set either input and output directories.
+
+```{r base-path}
+#basePath <- "/home/celine/temp2"
+#basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
+basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
+
+# Input directories
+PATH_ALL_INPUT <- file.path(basePath, "inputData")
+PATH_LABDATA <- file.path(PATH_ALL_INPUT, "lab_data")
+
+PATH_BASE_ANALYSIS <- file.path(basePath, analysis.name)
+PATH_RDS_OBJECTS <- file.path(PATH_BASE_ANALYSIS, "rdsObjects")
+
+sep_data <- grep("^03_", list.files(PATH_RDS_OBJECTS, full.names = FALSE, recursive = FALSE), value = TRUE)
+sep_days <- sort(str_extract(sep_data, "lab_day_[0-9]{2}"))
+```
+
+```{r starter, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+    # code evaluation
+    eval = TRUE,
+    echo = TRUE
+)
+```
+
+# Load the filtered data
+
+Take data previously generated during single dataset pipeline execution.
+
+```{r multiple-load}
+if (dataset == "lab_3_days") {
+    
+    sep_data.list <- lapply(sep_days[1:3], function(day){
+        
+        toLoad_SO <- grep(day, sep_data, value = TRUE)
+        SO <- readRDS(file = file.path(PATH_RDS_OBJECTS, toLoad_SO))
+    })
+    names(sep_data.list) <- sep_days[1:3]
+    
+    
+} else if (dataset == "lab_4_days") {
+    
+    sep_data.list <- lapply(sep_days, function(day){
+        
+        toLoad_SO <- grep(day, sep_data, value = TRUE)
+        SO <- readRDS(file = file.path(PATH_RDS_OBJECTS, toLoad_SO))
+    })
+    names(sep_data.list) <- sep_days
+}
+
+sep_data.list
+```
+
+# List features and cellnames of filtered in data
+
+```{r}
+invisible(sapply(sep_days, function(datasetX){
+    cells <- colnames(sep_data.list[[datasetX]])
+    features <- rownames(sep_data.list[[datasetX]])
+    write(
+        cells,
+        file = file.path(PATH_BASE_ANALYSIS, datasetX, paste0("filteredIn_cells_", datasetX, ".txt")))
+    write(
+        features,
+        file = file.path(PATH_BASE_ANALYSIS, datasetX, paste0("filteredIn_features_", datasetX, ".txt")))
+}))
+rm(sep_data.list)
+gc()
+```
+
+# Load raw data
+
+```{r}
+rawData.list <- sapply(sep_days, function(datasetX){
+    # Load filtered cells and features
+    cellsIn <- readLines(file.path(PATH_BASE_ANALYSIS, datasetX, paste0("filteredIn_cells_", datasetX, ".txt")))
+    featuresIn <- readLines(file.path(PATH_BASE_ANALYSIS, datasetX, paste0("filteredIn_features_", datasetX, ".txt")))
+    
+    # Load raw data
+    raw.data <- Read10X(data.dir = file.path(PATH_LABDATA, datasetX), gene = 2)
+    SO <- CreateSeuratObject(counts=raw.data, project=dataset)
+    
+    # rename cells
+    cell_ids <- colnames(SO)
+    UMIs <- str_extract(cell_ids, '[A-Z]*')
+    cellnames <- paste(datasetX, 1, UMIs, sep = '_')
+    SO <- RenameCells(SO, new.names = cellnames)
+    
+    # subset the raw data
+    SO_subsetCells <- SO[featuresIn, cellsIn]
+})
+```
+
+# Merge the data and normalize
+
+```{r}
+SO <- merge(x = rawData.list[[1]], y = rawData.list[2:length(rawData.list)], merge.data = T)
+SO
+
+rm(sep_data, rawData.list)
+invisible(gc())
+
+SO <- NormalizeData(SO, normalization.method = "LogNormalize", verbose=FALSE)
+```
+
+# Save the object
+
+```{r}
+saveRDS(SO, file = file.path(PATH_RDS_OBJECTS, paste0("99_rawData_filtered_", dataset, ".rds")))
+```
+
+
+<!-- nohup Rscript -e "rmarkdown::render('cellrank_dataPreparation.Rmd', params = list( dataset = 'lab_4_days' ), output_file = './cellrank_dataPreparation_ciml5_lab_4_days.html')" & -->
