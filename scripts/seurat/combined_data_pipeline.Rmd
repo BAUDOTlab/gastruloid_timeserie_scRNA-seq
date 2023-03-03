@@ -29,24 +29,6 @@ params:
         value: FALSE
     do.merge:
         value: FALSE
-    mito.high:
-        value: 10
-        min: 1
-        max: 100
-    ribo.low:
-        value: 25
-        min: 0
-        max: 99
-    min.feat:
-        value: 200
-    min.cells:
-        value: 3
-    min.counts:
-        value: 1500
-    max.counts:
-        value: 150000
-    norm.meth:
-        value: "LogNormalize"
     hvg.meth:
         value: mvp
         choices: [vst, mvp, disp]
@@ -60,8 +42,6 @@ params:
         value: 10
     top.pcs:
         value: 30
-    dblt.rate:
-        value: 8
     res:
         value: 1.0
     algo.cluster:
