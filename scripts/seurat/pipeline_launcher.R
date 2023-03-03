@@ -255,7 +255,7 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
             # YES
             
             combination <- if (opt$do_integ) "integration" else "merge"
-            rmarkdown::render("combined_data_pipeline.Rmd", params = param.list, output_file = paste0("combinedData_", opt$analysis_name, "_merged_", opt$input_dataset, ".html"))
+            rmarkdown::render("combinedDatasets_pipeline.Rmd", params = param.list, output_file = paste0("combinedData_", opt$analysis_name, "_merged_", opt$input_dataset, ".html"))
         } else {
             # NO
             
@@ -322,7 +322,7 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
 #     rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$input_dataset, ".html"))
 # } else if (opt$input_dataset %in% c("lab_3_ days", "lab_4_days")){
 #     combination <- if (opt$do_integ) "integrated" else "merged"
-#     rmarkdown::render("combined_data_pipeline.Rmd", params = param.list, output_file = paste0("combinedData_", combination, "_", opt$input_dataset, ".html"))
+#     rmarkdown::render("combinedDatasets_pipeline.Rmd", params = param.list, output_file = paste0("combinedData_", combination, "_", opt$input_dataset, ".html"))
 # }
 
 #rmarkdown::render("no_df_subset_pipeline.Rmd", params = param.list, output_file = paste0("no_df_subset_", opt$input_dataset, ".html"))
