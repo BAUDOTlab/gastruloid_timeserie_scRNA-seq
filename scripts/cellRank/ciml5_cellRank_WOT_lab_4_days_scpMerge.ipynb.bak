@@ -1,0 +1,1092 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "4d566486-3ad9-47f3-9701-8f8fa1fc866e",
+   "metadata": {},
+   "source": [
+    "# CellRank pipeline, time series datasets (Waddington Optimal Transport)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ad92b6a5-e163-48f9-981d-96f4dbe95651",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "## Import packages and set up the analysis"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "48bc6751-f771-45db-993e-0a27d6f5739b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import sys\n",
+    "\n",
+    "# the installation can take ~10mins\n",
+    "# ignore the messages: ERROR: Failed building wheel for <package>\n",
+    "# as long as it later print: Running setup.py install for <package> ... done\n",
+    "if \"google.colab\" in sys.modules:\n",
+    "    %pip install -q git+https://github.com/theislab/cellrank@dev#egg=cellrank[external,krylov]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3dd19538-7398-4eb9-b0eb-b5e0dd858273",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import scvelo as scv\n",
+    "import scanpy as sc\n",
+    "import cellrank as cr\n",
+    "import matplotlib.pyplot as plt\n",
+    "import numpy as np\n",
+    "import os\n",
+    "import pandas as pd\n",
+    "import plotly.io as pio\n",
+    "import plotly.express as px\n",
+    "import plotly.offline as py\n",
+    "import plotly.graph_objects as go\n",
+    "from plotly.subplots import make_subplots\n",
+    "\n",
+    "# import CellRank kernels and estimators\n",
+    "from cellrank.external.kernels import WOTKernel\n",
+    "from cellrank.tl.kernels import ConnectivityKernel\n",
+    "from cellrank.tl.estimators import GPCCA"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "54aa990f-c7ea-440d-a954-8fb4ce0e9a88",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# set verbosity levels\n",
+    "cr.settings.verbosity = 2\n",
+    "scv.settings.verbosity = 3"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3f79746f-0520-4340-9f2e-3228522a378f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ROOT_FOLDER_H5AD = \"/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/lineageInference/inputData/h5adObjects\"\n",
+    "ROOT_FOLDER_TABLES = \"/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/lineageInference/inputData/tables\"\n",
+    "\n",
+    "BASEANALYSIS = \"/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/lineageInference/ciml5\"\n",
+    "if not os.path.exists(BASEANALYSIS):\n",
+    "    os.mkdir(BASEANALYSIS)\n",
+    "    \n",
+    "h5adObjects = os.path.join(BASEANALYSIS,'h5ad.objects')\n",
+    "if not os.path.exists(h5adObjects):\n",
+    "    os.mkdir(h5adObjects)\n",
+    "    \n",
+    "PATH_FIGURES = os.path.join(BASEANALYSIS, \"figures\")\n",
+    "if not os.path.exists(PATH_FIGURES):\n",
+    "    os.mkdir(PATH_FIGURES)\n",
+    "\n",
+    "PATH_CACHE = os.path.join(BASEANALYSIS, \"cache\")\n",
+    "if not os.path.exists(PATH_CACHE):\n",
+    "    os.mkdir(PATH_CACHE)\n",
+    "\n",
+    "sc.settings.figdir = PATH_FIGURES\n",
+    "sc.settings.cachedir = PATH_CACHE\n",
+    "scv.settings.figdir = PATH_FIGURES\n",
+    "cr.settings.figdir = PATH_FIGURES"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b90192cc-49a7-4483-b607-31d688cc068a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# color table\n",
+    "colors_transferred_df = pd.read_csv(os.path.join(ROOT_FOLDER_TABLES,'clusterColors.tsv'),sep='\\t')\n",
+    "colors_transferred_dic = colors_transferred_df.set_index('transferred_identity').to_dict()['blind_friendly']\n",
+    "colors_days_dic = {'Day_04': \"#bb573b\", 'Day_05': \"#ac9d3e\", 'Day_06': \"#5aaf6a\", 'Day_11': \"#b94c84\"}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "17a25a2f-d606-43ba-8019-2e6eb1e6f893",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "analysis = \"lab_4_days\"\n",
+    "ANALYSIS_FOLDER = os.path.join(BASEANALYSIS, analysis)\n",
+    "if not os.path.exists(ANALYSIS_FOLDER):\n",
+    "    os.mkdir(ANALYSIS_FOLDER)\n",
+    "label_days = \"days 4-5-6-11\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b8435dc2-ac6b-488a-9edc-b6c1daff9479",
+   "metadata": {},
+   "source": [
+    "## Load the data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3efe4f1d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "##rdsObjects = os.path.join(root_folder_h5ad, \"rdsObjects\")\n",
+    "#sepDays = [\"lab_day_04\", \"lab_day_05\", \"lab_day_06\", \"lab_day_11\"]\n",
+    "#sepData = [\"07_clusters_\" + aDay + \".h5ad\" for aDay in sepDays]\n",
+    "#sepDataList = [sc.read_h5ad(os.path.join(root_folder_h5ad, aDay)) for aDay in sepData]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a7b2527d-800f-4e92-acd8-8eebd390335c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "adata = sc.read_h5ad(os.path.join(ROOT_FOLDER_H5AD, '00_rawData_filtered_lab_4_days.h5ad'))\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3cdda6ad",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sc.pp.normalize_total(adata)\n",
+    "sc.pp.log1p(adata)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ee478210",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#scv.pp.filter_genes_dispersion(adata, n_top_genes=2000)\n",
+    "#scv.pp.log1p(adata)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0f0133e4",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# umap coordinates\n",
+    "DR2d = pd.read_csv(\"/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_4_days_merged/final_umap2Dcoordinates_lab_4_days_merged.csv\", sep=\",\", index_col=0)\n",
+    "UMAP2d = DR2d.loc[adata.obs.index,[x for x in DR2d.columns.tolist() if \"UMAP2d\" in x]]\n",
+    "DR3d = pd.read_csv(\"/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_4_days_merged/final_umap3Dcoordinates_lab_4_days_merged.csv\", sep=\",\", index_col=0)\n",
+    "UMAP3d = DR3d.loc[adata.obs.index,[x for x in DR3d.columns.tolist() if \"UMAP3d\" in x]]\n",
+    "adata.obsm['X_umap2d'] = UMAP2d.to_numpy(dtype=\"float32\")\n",
+    "adata.obsm['X_umap3d'] = UMAP3d.to_numpy(dtype=\"float32\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8dae9c48",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "adata.obs.rename_axis('cellNames')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "cdc71124",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "adata.obs = adata.obs.rename_axis('cellNames')\n",
+    "adata.obs['day'] = ['_'.join(x.split('_')[1:3]).capitalize() for x in adata.obs.index]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "dff433b8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "adata.obs.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1e97dc04",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "scv.pl.scatter(adata, basis=\"umap2d\", c='day', save=\"cellRank_lab_4_days_UMAP_coloredByDay.pdf\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "23678508-b922-4993-9fe5-3f5ba6ea2f72",
+   "metadata": {},
+   "source": [
+    "## Preprocess the data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8c995ab6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "#sc.pp.pca(adata)\n",
+    "#sc.pp.neighbors(adata, random_state=0)\n",
+    "#adata"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "48785d62-d161-427c-9020-0d2101e19350",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sc.pp.highly_variable_genes(adata)\n",
+    "sc.pp.pca(adata, use_highly_variable=True)\n",
+    "sc.pp.neighbors(adata, n_pcs=30, n_neighbors=30, random_state=17)\n",
+    "adata"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "062f1923-7e82-40ac-9059-0b4cd2809723",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "scv.pl.scatter(adata, basis=\"umap2d\", c=\"day\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4decfae4-410a-4aa4-a0c9-4b506b520c09",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "## Estimate initial growth rates"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "30a93225-cb12-4166-8a39-ec0a9fc97a87",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "adata.obs['stage'] = adata.obs['day'].str[-2:].astype(int)\n",
+    "adata.obs.stage.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b4f5db26-d8a1-4386-83a9-bb9c371cc54d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wk = WOTKernel(adata, time_key=\"stage\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "14d5d78b-5efa-4d4e-be1d-ecbcb9bcf196",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#wk.compute_initial_growth_rates(organism=\"mouse\", key_added=\"growth_rate_init\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "f43e5cd5-d333-4344-866c-68570510823a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#prolif_genes = ['Mcm4', 'Smc4', 'Gtse1', 'Ttk', 'Rangap1', 'Ccnb2', 'Cenpa', 'Cenpe', 'Cdca8', 'Ckap2', 'Rad51', 'Pcna', 'Ube2c', 'Lbr', 'Cenpf', 'Birc5', 'Dtl', 'Dscc1', 'Cbx5', 'Usp1', 'Hmmr', 'Wdr76', 'Ung', 'Hn1', 'Cks2', 'Kif20b', 'Cdk1', 'Slbp', 'Aurkb', 'Kif11', 'Cks1b', 'Blm', 'Msh2', 'Gas2l3', 'Tyms', 'Hjurp', 'Hells', 'Prim1', 'Uhrf1', 'Ndc80', 'Mcm6', 'Rrm1', 'Mlf1ip', 'Top2a', 'Hmgb2', 'Ccne2', 'G2e3', 'Tmpo', 'Nusap1', 'Ncapd2', 'Mcm2', 'Kif2c', 'Cdca2', 'Nasp', 'Gmnn', 'Cdc6', 'Pold3', 'Ckap2l', 'Fam64a', 'Ubr7', 'Fen1', 'Bub1', 'Brip1', 'Atad2', 'Psrc1', 'Rrm2', 'Tipin', 'Casp8ap2', 'Tubb4b', 'Kif23', 'Exo1', 'Rfc2', 'Pola1', 'Mki67', 'Tpx2', 'Aurka', 'Anln', 'Chaf1b', 'Hjurp', 'Tacc3', 'Mcm5', 'Anp32e', 'Dlgap5', 'Ect2', 'Nuf2', 'Cdc45', 'Ckap5', 'Ctcf', 'Clspn', 'Cdca7', 'Cdca3', 'Rpa2', 'Gins2', 'E2f8', 'Cdc25c', 'Nek2', 'Cdc20', 'Rad51ap1']\n",
+    "#availGenes = [gene for gene in prolif_genes if gene in adata.var_names ]\n",
+    "#print(str(len(availGenes)) + \" proliferation genes over the \" + str(len(prolif_genes)) + \" provided.\")\n",
+    "#availGenes"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b21a9470",
+   "metadata": {},
+   "source": [
+    "I'm not able to use the proliferation genes provided by the kernel WOT. I still continue the analysis as it is mentioned in the tutorial of the tool:\n",
+    "\n",
+    "> Notes\n",
+    "> \n",
+    "> If you don’t have access to proliferation/apoptosis gene sets, you can use the ones defined in cellrank for a specific organism. Alternatively, you can also use WOT without an estimate of initial growth rates. In that case, make sure to use several iterations in cellrank.external.kernels.WOTKernel.compute_transition_matrix() by increasing the growth_iters parameter. A value around 3 works well in most cases."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "28e7e89a-1877-4dad-9255-c19b94c3b637",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#scv.pl.scatter(\n",
+    "#    adata, c=\"growth_rate_init\", legend_loc=\"right\", basis=\"umap_2d\", s=10\n",
+    "#)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "960dc437-f09c-4172-999e-b4e9ee2a1af0",
+   "metadata": {},
+   "source": [
+    "## Compute transition matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "67411844-1fc5-486c-a278-f55b49dffc85",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wk.compute_transition_matrix(\n",
+    "    growth_iters=3, last_time_point=\"connectivities\"\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c010609b-7867-49d9-89a5-96dfd2466275",
+   "metadata": {},
+   "source": [
+    "## Simulate random walks"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "52a50077",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wk.plot_random_walks(\n",
+    "    n_sims=100,\n",
+    "    max_iter=50,\n",
+    "    stop_ixs={\"stage\": [11]},\n",
+    "    basis=\"umap2d\",\n",
+    "    c=\"day\",\n",
+    "    legend_loc=\"none\",\n",
+    "    linealpha=0.5,\n",
+    "    dpi=150,\n",
+    "    seed=17,\n",
+    "    n_jobs=8,\n",
+    "    save=\"cellRank_lab_4_days_RW_default.pdf\"\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "f25ea8d5",
+   "metadata": {},
+   "source": [
+    "Following code chunk starts the random walks from the stage 4 (ie. day4)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d551b6fc-c5b5-4d5f-b8bf-5a71c97e28ee",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wk.plot_random_walks(\n",
+    "    n_sims=100,\n",
+    "    max_iter=50,\n",
+    "    start_ixs={\"stage\": [4]},\n",
+    "    basis=\"umap2d\",\n",
+    "    c=\"day\",\n",
+    "    legend_loc=\"none\",\n",
+    "    linealpha=0.5,\n",
+    "    dpi=150,\n",
+    "    seed=17,\n",
+    "    n_jobs=8,\n",
+    "    save=\"cellRank_lab_4_days_RW_start.day04.pdf\"\n",
+    ")"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "id": "0540b4ee",
+   "metadata": {},
+   "source": [
+    "### Addition of celltype and cluster information of each cells"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "49e5dd2e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# multi time-point information\n",
+    "multiTPmetadata = pd.read_csv(\"/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_4_days_merged/metadata_celltypeANDclusters_lab_4_days_merged.csv\", sep=',')\n",
+    "adata.obs = adata.obs.join(multiTPmetadata)\n",
+    "\n",
+    "# single time-point information\n",
+    "for dataset in [\"lab_day_04\", \"lab_day_05\", \"lab_day_06\", \"lab_day_11\"]:\n",
+    "    if \"singleTPmetadata\" not in globals():\n",
+    "        singleTPmetadata = pd.read_csv(\"/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/\" + dataset + \"/metadata_celltypeANDclusters_\" + dataset + \".csv\", sep=\",\")\n",
+    "    else:\n",
+    "        additionalMD = pd.read_csv(\"/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/\" + dataset + \"/metadata_celltypeANDclusters_\" + dataset + \".csv\", sep=\",\")\n",
+    "        singleTPmetadata = pd.concat([singleTPmetadata, additionalMD])\n",
+    "\n",
+    "singleTPmetadata.drop(['celltype_DF'], axis=1, inplace=True)\n",
+    "singleTPmetadata.head()\n",
+    "\n",
+    "adata.obs = adata.obs.join(singleTPmetadata)\n",
+    "adata.obs['multiTP_res1'] = adata.obs['multiTP_res1'].astype('category')\n",
+    "adata.obs['multiTP_celltype'] = adata.obs['multiTP_celltype'].astype('category')\n",
+    "adata.obs['singleTP_res1'] = adata.obs['singleTP_res1'].astype('category')\n",
+    "adata.obs['singleTP_celltype'] = adata.obs['singleTP_celltype'].astype('category')\n",
+    "adata.obs.head()\n",
+    "\n",
+    "adata.obs_keys"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b1ea862a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# create dataframe to plot\n",
+    "df1 = pd.DataFrame(adata.obsm['X_umap2d'], index=adata.obs.index, columns=['UMAP_1', 'UMAP_2'])\n",
+    "#df1 = pd.DataFrame(adata.obsm['X_umap3d'], index=adata.obs.index, columns=['UMAP_1', 'UMAP_2', 'UMAP_3'])\n",
+    "df2 = pd.DataFrame(adata.obs)\n",
+    "#df3 = pd.DataFrame(adata.obs['ct_scmapAtlas'], index=adata.obs.index, columns=['ct_scmapAtlas'])\n",
+    "df = pd.concat([df1,df2], axis=1).sort_values(by = 'day')\n",
+    "#fig = px.scatter_3d(df, x=\"UMAP_1\", y=\"UMAP_2\", z=\"UMAP_3\",\n",
+    "#    color=\"day\",\n",
+    "#    hover_name='singleTP.celltype', color_discrete_sequence=['dodgerblue','orange','green','red'],\n",
+    "#    height=1500, title=\"Complete dataset over \" + label_days + \" -- coloration by day\")\n",
+    "#fig\n",
+    "fig = px.scatter(df, x=\"UMAP_1\", y=\"UMAP_2\", color=\"day\",\n",
+    "    hover_name='singleTP_celltype',\n",
+    "    color_discrete_sequence=['dodgerblue','orange','green','red'],\n",
+    "    height=1500,\n",
+    "    title=\"Complete dataset over \" + label_days + \" -- coloration by day\",\n",
+    "    hover_data={\n",
+    "        'UMAP_1':False,\n",
+    "        'UMAP_2':False,\n",
+    "        'day':True,\n",
+    "        'singleTP_res1':True,\n",
+    "        'multiTP_res1':True\n",
+    "    }\n",
+    ")\n",
+    "fig"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3d3874e3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wk.plot_random_walks(\n",
+    "    n_sims=50,\n",
+    "    max_iter=20,\n",
+    "    start_ixs={\"singleTP_celltype\": [\"Epiblast\"]},\n",
+    "    basis=\"umap2d\",\n",
+    "    c=\"day\",\n",
+    "    legend_loc=\"none\",\n",
+    "    linealpha=0.5,\n",
+    "    dpi=150,\n",
+    "    save=\"cellRank_lab_4_days_RW_start.epiblast_singleTP_NSIM.50.pdf\"\n",
+    ")\n",
+    "\n",
+    "wk.plot_random_walks(\n",
+    "    n_sims=1,\n",
+    "    start_ixs={\"day\": [\"Day_04\"]},\n",
+    "    basis=\"umap2d\",\n",
+    "    c=\"day\",\n",
+    "    legend_loc=\"none\",\n",
+    "    linealpha=0.5,\n",
+    "    dpi=150,\n",
+    "    save=\"cellRank_lab_4_days_RW_start.day04_2_NSIM.1.pdf\"\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4fbb21f3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wk.plot_random_walks(\n",
+    "    n_sims=1,\n",
+    "    max_iter=0.1,\n",
+    "    start_ixs={\"multiTP_celltype\": [\"Epiblast\"]},\n",
+    "    stop_ixs={\"multiTP_res1\": [\"27\"]},\n",
+    "    successive_hits=2,\n",
+    "    basis=\"umap2d\",\n",
+    "    c=\"day\",\n",
+    "    legend_loc=\"none\",\n",
+    "    linealpha=0.5,\n",
+    "    dpi=150,\n",
+    "    save=\"cellRank_lab_4_days_RW_start.epiblast_mutliTP_NSIM.1.pdf\"\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5de7d4c1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "adata"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "9769798c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "copied = adata.copy\n",
+    "copied"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "bc2f78f1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "copied = wk.write_to_adata()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "6e69b0fd",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "copied"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d297c337",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "adata"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "id": "894ffee0",
+   "metadata": {},
+   "source": [
+    "In the following code chunk the random walks should start from the epiblast of day 4 (cluster 'single.res1' equals to 4.9)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "156ec6dc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "adata.obs_keys"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "485efdd7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "epiblast = adata.obs.singleTP_res1[adata.obs.multiTP_celltype == \"Epiblast\"].value_counts(ascending=False)\n",
+    "epiblast"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "345dab28",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "epiblast.loc[set(epiblast.index).intersection(set(adata.obs.day == \"Day_04\"))]\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1936c6b5-2598-4639-8c39-24a6be61aebf",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wk.plot_random_walks(\n",
+    "    n_sims=100,\n",
+    "    max_iter=10,\n",
+    "    start_ixs={'singleTP_res1': ['4.9']},\n",
+    "    basis=\"umap2d\",\n",
+    "    c=\"day\",\n",
+    "    legend_loc=\"none\",\n",
+    "    linealpha=0.5,\n",
+    "    dpi=150,\n",
+    "    save=\"cellRank_lab_4_days_RW_start.cluster.4.9_singleTP_NSIM.100.pdf\"\n",
+    ")"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "id": "a7765263-440b-4e00-a3d8-28b9fa4749d7",
+   "metadata": {},
+   "source": [
+    "<!-- ## Probability mass flow in time\n",
+    "\n",
+    "The cluster in title is the cluster for wich to visualize outgoing flow. The `min_flow` parameter is a bottom threshold to show flow edges with flow greater than this value. -->"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "dafa4c57",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# cluster_sort = adata.obs['single.res1'].cat.categories.astype('str').sort_values()\n",
+    "# cluster_sort"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "cad5d44d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# adata.obs_keys"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "261e3238",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# adata.obs['multiTP.res1'].cat.categories"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "bb591659",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# adata.obs.groupby('day')['multiTP.res1'].apply(lambda x: (x==9).sum()).reset_index(name='count')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "cf97b7e2",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# adata.obs.query('adata.obs[\"multiTP.res1\"] == 9 & day == \"Day_04\"')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "977699c0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# adata.obs.groupby('day')['multiTP.res1'].apply(lambda x: (x==9).sum()).reset_index(name='count')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a147a201-3a11-4f6d-8566-83cad0395722",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# cluster_sort = adata.obs['single.res1'].cat.categories\n",
+    "\n",
+    "# for clust in cluster_sort:\n",
+    "#     ax = wk.plot_single_flow(\n",
+    "#         cluster_key=\"single.res1\",\n",
+    "#         time_key=\"stage\",\n",
+    "#         cluster=clust,\n",
+    "#         min_flow=0.05,\n",
+    "#         show=False,\n",
+    "#         dpi=100\n",
+    "#     )\n",
+    "\n",
+    "#     # prettify the plot a bit, rotate x-axis tick labels\n",
+    "#     locs, labels = plt.xticks()\n",
+    "#     ax.set_xticks(locs)\n",
+    "#     ax.set_xticklabels(labels, rotation=45)\n",
+    "\n",
+    "#     plt.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4d56601d-b4cf-4118-a376-3420b31b0717",
+   "metadata": {},
+   "source": [
+    "## Compute macrostates"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8d0ecc0a-44d7-45de-bd9a-b01e3a489d54",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ck = ConnectivityKernel(adata)\n",
+    "ck.compute_transition_matrix()\n",
+    "\n",
+    "combined_kernel = 0.8 * wk + 0.2 * ck"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8d32039f-3796-45f5-9925-5c2ee52732ec",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "g = GPCCA(combined_kernel)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b21356f9-7fff-4bbc-98bb-9b043bb83d43",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "g.compute_schur()\n",
+    "g.plot_spectrum(real_only=True, save=\"cellRank_lab_4_days_gpcca_SchurDecomposition.pdf\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8dd2b527",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "g.compute_macrostates(n_states=9)\n",
+    "g.plot_macrostates(discrete=True, basis=\"umap2d\", legend_loc=\"right\", save=\"cellRank_lab_4_days_gpcca_macrostates_N.9.pdf\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "327cb165",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "g.compute_macrostates(n_states=6)\n",
+    "g.plot_macrostates(discrete=True, basis=\"umap2d\", legend_loc=\"right\", save=\"cellRank_lab_4_days_gpcca_macrostates_N.6.pdf\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b363ffc2-95db-4908-8e73-dfa9c17eb94c",
+   "metadata": {},
+   "source": [
+    "## Define terminal macrostates"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3de90f6b-6573-4c80-9635-5d3c93c334e3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "g.plot_macrostate_composition(key=\"stage\", save=\"cellRank_lab_4_days_gpcca_macrostates_validation.pdf\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "010ab250-9fdd-471b-949b-0a8ec135abc3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "terminal_clusters = g.macrostates.cat.categories\n",
+    "g.set_terminal_states_from_macrostates(terminal_clusters)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "efbdd613",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "macroS_list = adata.obs.terminal_states.cat.categories.to_list()\n",
+    "for aMacro in macroS_list:\n",
+    "    macro = adata.obs[adata.obs.terminal_states == aMacro]\n",
+    "    macro.to_csv(os.path.join(ANALYSIS_FOLDER, \"cellRank_lab_4_days_macrostate\" + str(aMacro) + \"_probabilities\"))\n",
+    "\n",
+    "adata.obs[adata.obs.terminal_states == \"0\"]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b12f59a8-6455-4722-b62f-802ddc4cdc63",
+   "metadata": {},
+   "source": [
+    "## Compute fate probabilities"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "579ba95a-adaa-4530-86d3-c4ab414f9544",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "g.compute_absorption_probabilities(solver=\"gmres\", use_petsc=True)\n",
+    "g.plot_absorption_probabilities(same_plot=False, basis=\"umap2d\", perc=[0, 99], save=\"cellRank_lab_4_days_gpcca_fateProbabilities_NmacroStates.6.pdf\")"
+   ]
+  },
+  {
+   "attachments": {},
+   "cell_type": "markdown",
+   "id": "385ee380-b5a5-4dae-a3e4-00b6996bcd04",
+   "metadata": {},
+   "source": [
+    "<!-- ## Log-odds in time -->"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "567bc392-1402-4b60-b1ff-9bd625134a8f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# adata"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7c5df3f7-f5e1-4068-b354-bfea3bc6b74c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# #adata.obsm['']\n",
+    "# print(terminal_clusters)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7e8c404d-01d7-4c0d-abd1-399cfd91d25e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# for clust in terminal_clusters:\n",
+    "#     cr.pl.log_odds(\n",
+    "#         adata,\n",
+    "#         lineage_1=clust,\n",
+    "#         lineage_2=None,\n",
+    "#         time_key=\"stage\",\n",
+    "#         threshold=0,\n",
+    "#         size=2,\n",
+    "#         figsize=(9, 4),\n",
+    "#         legend_loc=\"upper right out\",\n",
+    "#     )"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0de0b1e3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# cr.pl.log_odds(\n",
+    "#     adata,\n",
+    "#     lineage_1=\"7\",\n",
+    "#     lineage_2=None,\n",
+    "#     time_key=\"stage\",\n",
+    "#     keys=[\"Mesp1\", \"Myog\", \"Myod1\", \"Pax3\"],\n",
+    "#     threshold=0,\n",
+    "#     size=2,\n",
+    "#     figsize=(9, 4),\n",
+    "#     legend_loc=\"upper right out\",\n",
+    "# )"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a14c645a-f4a8-4639-82f5-68c14f2b4769",
+   "metadata": {},
+   "source": [
+    "## Driver genes"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a826255e-613a-4c49-b7b5-52f84d44a9ce",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "drivers = g.compute_lineage_drivers(return_drivers=False)\n",
+    "drivers.to_csv(os.path.join(ANALYSIS_FOLDER, \"lab_4_days_lineageDrivers_NmacroS.\" + str(len(macroS_list)) + \".csv\"))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "18855a6c-0c37-440b-875f-3571fa701178",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "n_feat = 15\n",
+    "\n",
+    "clust = \"0\"\n",
+    "top_0 = adata.varm['terminal_lineage_drivers'].filter(regex=(clust+\"_corr\")).sort_values(by=clust+\"_corr\", ascending=False).iloc[:n_feat].index[:].tolist()\n",
+    "\n",
+    "clust = \"4\"\n",
+    "top_4 = adata.varm['terminal_lineage_drivers'].filter(regex=(clust+\"_corr\")).sort_values(by=clust+\"_corr\", ascending=False).iloc[:n_feat].index[:].tolist()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "60c16d58-567c-4b67-8ab4-7ccef89b534e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "goi = {\n",
+    "    \"0\": top_0,\n",
+    "    \"4\": top_4\n",
+    "}\n",
+    "\n",
+    "# compute mean gene expression across cells, so we have somethign nice to color the dots by\n",
+    "#adata.var[\"means\"] = adata.X.A.mean(axis=0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7d48a97e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "goi"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "cf378e14",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "for i in range(0,15,2):\n",
+    "    g.plot_lineage_drivers_correlation(\n",
+    "        lineage_x=\"0\",\n",
+    "        lineage_y=\"4\",\n",
+    "        gene_sets={\"0\": goi['0'][i:i+2],\n",
+    "                   \"4\": goi['4'][i:i+2]},\n",
+    "        legend_loc=\"none\",\n",
+    "        figsize=(7, 7),\n",
+    "        fontsize=20,\n",
+    "        title=[\"driver genes for 0 vs. 4 differentiation\"],\n",
+    "        size=20,\n",
+    "        adjust_text=True,\n",
+    "        save=\"cellRank_lab_4_days_gpcca_lineageDriversCorrelation_0-vs-4.\" + '.'.join(goi['0'][i:i+2]) + \"-vs-\" + '.'.join(goi['4'][i:i+2]) + \".pdf\"\n",
+    "    )"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.9.10"
+  },
+  "vscode": {
+   "interpreter": {
+    "hash": "467d3e625c3376a9cec7608e10707e0ccfb35ce9a00848423281a5bc3eb0b3c5"
+   }
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
