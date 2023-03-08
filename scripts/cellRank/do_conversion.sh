@@ -5,7 +5,7 @@
 #conda activate SO2h5ad
 
 
-for i in $(ls ../../../seuratAnalysis/ciml5/rdsObjects/\*lab_{3,4}_days\*)
+for i in $(ls ../../../seuratAnalysis/ciml5/rdsObjects/99\_rawData\_filtered\_\*)
 do
 	filename=$(basename $i .rds)
 	echo $filename

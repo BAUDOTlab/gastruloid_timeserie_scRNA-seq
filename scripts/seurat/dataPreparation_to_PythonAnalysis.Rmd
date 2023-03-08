@@ -19,15 +19,14 @@ output:
         keep_tex: no
 params:
     dataset:
-        value: "lab_4_days"
+        value: NA
+        choices: [lab_day_04, lab_day_05, lab_day_06, lab_day_11, lab_4_days, lab_3_days]
     analysis.name:
         value: "ciml5"
-    combine.meth:
-        value: "merged"
     general.seed: 17
 title: |
   | Protocole 3:
-  | Data preparation for CellRank analysis
+  | Data preparation for Python analyses
 ---
 
 <!-- Javascript for zooming on figures (adapted from: https://stackoverflow.com/questions/40401680) -->
@@ -144,8 +143,8 @@ Set either input and output directories.
 
 ```{r base-path}
 #basePath <- "/home/celine/temp2"
-#basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
-basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
+basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
+#basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
 
 # Input directories
 PATH_ALL_INPUT <- file.path(basePath, "inputData")
@@ -189,6 +188,12 @@ if (dataset == "lab_3_days") {
         SO <- readRDS(file = file.path(PATH_RDS_OBJECTS, toLoad_SO))
     })
     names(sep_data.list) <- sep_days
+} else if (dataset %in% sep_days) {
+    
+    sep_data.list <- list()
+    sep_days <- grep(dataset, sep_days, value = TRUE)
+    toLoad_SO <- grep(dataset, sep_data, value = TRUE)
+    sep_data.list[[dataset]] <- readRDS(file = file.path(PATH_RDS_OBJECTS, toLoad_SO))
 }
 
 sep_data.list
@@ -237,8 +242,15 @@ rawData.list <- sapply(sep_days, function(datasetX){
 # Merge the data and normalize
 
 ```{r}
-SO <- merge(x = rawData.list[[1]], y = rawData.list[2:length(rawData.list)], merge.data = T)
-SO
+if (dataset == "lab_3_days" | dataset == "lab_4_days") {
+    
+    SO <- merge(x = rawData.list[[1]], y = rawData.list[2:length(rawData.list)], merge.data = T)
+
+} else {
+    
+    SO <- rawData.list[[1]]
+    
+}
 
 rm(sep_data, rawData.list)
 invisible(gc())
