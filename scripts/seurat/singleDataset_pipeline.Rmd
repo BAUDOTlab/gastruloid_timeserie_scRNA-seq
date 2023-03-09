@@ -634,7 +634,7 @@ SO <- NormalizeData(SO, normalization.method = norm.meth, verbose=FALSE)
 SO <- FindVariableFeatures(SO, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
 ```
 
- ```{r hvg-mvp1, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
+```{r hvg-mvp1, eval=hvg.meth == "mvp", echo=hvg.meth == "mvp"}
 SO <- NormalizeData(SO, normalization.method = norm.meth, verbose=FALSE)
 SO <- FindVariableFeatures(SO, selection.method = hvg.meth, verbose=FALSE)
 
