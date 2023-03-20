@@ -11,20 +11,11 @@ extract_topn <- function(markers, topn=20){
             top_n(n = topn,
                   wt = avg_log2FC)
         
-        if (tail){
-            topnNeg <- markers %>%
-                group_by(cluster) %>%
-                top_n(n = -topn,
-                      wt = avg_log2FC)
+        topnMarkers <-  topnPos %>%
+            dplyr::arrange(cluster, p_val_adj)
 
-            topnMarkers <- bind_rows(topnPos, topnNeg)
-            topnMarkers <-  topnMarkers %>%
-                dplyr::arrange(cluster, p_val_adj)
-        } else {
-            topnMarkers <-  topnPos %>%
-                dplyr::arrange(cluster, p_val_adj)
-        }        
     } else {
+        
         markers <- markers %>%
             dplyr::arrange(p_val_adj)
         # Extract top markers per cluster
@@ -32,11 +23,6 @@ extract_topn <- function(markers, topn=20){
             top_n(n = topn,
                   wt = avg_log2FC)
         
-        # topnNeg <- markers %>%
-        #     top_n(n = -topn,
-        #           wt = avg_log2FC)
-        # 
-        # topnMarkers <- bind_rows(topnPos, topnNeg)
         topnMarkers <-  topnPos %>%
             dplyr::arrange(p_val_adj)
     }
