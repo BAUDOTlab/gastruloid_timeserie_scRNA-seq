@@ -1,0 +1,646 @@
+---
+title: "URD: trajectory inference"
+author: "Céline Chevalier"
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+    html_document:
+        theme:
+            bootswatch: yeti
+        toc: yes
+        toc_float:
+          collapsed: false
+          smooth_scroll: true
+        number_sections: yes
+        df_print: kable
+        code_folding: hide
+params:
+    knn:
+        value: 60
+    sigma:
+        value: 3
+    floodNsim:
+        value: 5
+    cellsForward:
+        value: 40
+    cellsBack:
+        value: 80
+    RWmaxSteps:
+        value: 50
+    RWNsim:
+        value: 10000
+    treeMeth:
+        value: preference
+        choices: [preference, ks]
+    cellsPerPTbin:
+        value: 25
+    binsPerPTwindow:
+        value: 8
+    treePtreshold:
+        value: 0.001
+    seed:
+        value: 17
+---
+
+<!-- Javascript for zooming on figures (adapted from: https://stackoverflow.com/questions/40401680) -->
+
+<!-- Jquery import conflicts with DT::datatable so needs to be commented here -->
+
+<!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script> -->
+
+
+<style>
+.zoomDiv {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 50;
+  transform: translate(-50%, -50%);
+  background-color: #FFFFFF;
+  box-shadow: 0px 0px 50px #888888;
+  width: fit-content;
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+}
+
+.zoomImg {
+  width: 150%;
+}
+</style>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    $('body').prepend("<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>");
+    // onClick for all img except the zoomed one and link ones (filter)
+    // use 'img.zoom' and out.extra='class=\"zoom\"' in chunk to specify manually which chunk images can be zoomed
+    $('img:not(.zoomImg)').filter(':not(a *)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src'));
+      $('.zoomDiv').show();
+    })
+    // onClick function for hiding div
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').hide();
+    })
+  })
+</script>
+
+```{r setup, warnings=F}
+# Set library to rely only on the urd environment
+.libPaths(c(.libPaths()[2:1]))
+
+# Load packages
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(URD))
+suppressPackageStartupMessages(library(rgl))
+suppressPackageStartupMessages(library(kableExtra))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(gridExtra))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(DT))
+
+source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/additionalPlots.R")
+
+attach(params)
+PATH_FIGURES <- paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/trajectory/ciml5/paramOptim/figures/",
+                       "knn.", knn,
+                       "_sigma.", sigma,
+                       "_floodNsim.", floodNsim,
+                       "_cellsForward.", cellsForward,
+                       "_cellsBack.", cellsBack,
+                       "_RWmaxSteps.", RWmaxSteps,
+                       "_RWNsim.", RWNsim,
+                       "_treeMeth.", treeMeth,
+                       "_cellsPerPTbin.", cellsPerPTbin,
+                       "_binsPerPTwindow.", binsPerPTwindow,
+                       "_treePtreshold.", treePtreshold, "/"
+)
+
+PATH_RDS <- paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/trajectory/ciml5/paramOptim/rdsObjects/",
+                       "knn.", knn,
+                       "_sigma.", sigma,
+                       "_floodNsim.", floodNsim,
+                       "_cellsForward.", cellsForward,
+                       "_cellsBack.", cellsBack,
+                       "_RWmaxSteps.", RWmaxSteps,
+                       "_RWNsim.", RWNsim,
+                       "_treeMeth.", treeMeth,
+                       "_cellsPerPTbin.", cellsPerPTbin,
+                       "_binsPerPTwindow.", binsPerPTwindow,
+                       "_treePtreshold.", treePtreshold, "/"
+)
+
+if(!dir.exists(PATH_FIGURES)){ dir.create(PATH_FIGURES) }
+if(!dir.exists(PATH_RDS)){ dir.create(PATH_RDS) }
+
+knitr::opts_chunk$set(
+    echo = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    fig.path = PATH_FIGURES,
+    dev = c('png','pdf')
+    )
+rgl::setupKnitr()
+```
+
+```{r show-params}
+ul <- unlist(params)
+df <- data.frame(keyName=names(ul), value=ul, row.names=NULL)
+names(df) <- c('Parameters', 'Values')
+df1 <- df[1:ceiling(dim(df)[1]/3),]
+df1$Parameters <- cell_spec(df1$Parameters, bold = T)
+df2 <- df[(ceiling(dim(df)[1]/3)+1):(2*ceiling(dim(df)[1]/3)),]
+df2$Parameters <- cell_spec(df2$Parameters, bold = T)
+df3 <- df[((2*ceiling(dim(df)[1]/3))+1):dim(df)[1],]
+df3$Parameters <- cell_spec(df3$Parameters, bold = T)
+
+list(df1, df2, df3) %>%
+    knitr::kable(align = "ll", row.names = FALSE, escape = F) %>% 
+    kable_styling(bootstrap_options = c("striped", "hover"),
+                  full_width = FALSE)
+rm(df)
+```
+
+```{r setup2, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  echo = TRUE
+)
+```
+
+# Load the data
+
+For this analysis, I use the merged data of the 4 days (ie. lab_4_days_merged). I get an urd-object by running the following code in bash, under the rossiV4 conda environment.
+
+```{bash, eval=FALSE}
+Rscript ./exportToURD.R
+```
+
+```{r loadData}
+# Load the 4 days merged dataset
+object <- readRDS(file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/trajectory/inputData/lab_data/urdObject_lab_4_days.rds")
+```
+
+# Calculate variable features
+
+CV: coefficient of variation
+
+```{r CalcVariableFeatures}
+stages <- sort(unique(object@group.ids$day))
+cells.each.stage <- lapply(stages,
+                           function(stage){
+                               rownames(object@group.ids)[which(object@group.ids$day == stage)]
+                           }
+)
+
+var.genes.by.stage <- lapply(1:length(stages),
+                             function(n){
+                                 findVariableGenes(object,
+                                                   cells.fit = cells.each.stage[[n]],
+                                                   set.object.var.genes = F,
+                                                   diffCV.cutoff = 0.001,
+                                                   mean.min = 0.001,
+                                                   mean.max = 100,
+                                                   main.use = stages[[n]],
+                                                   do.plot = T
+                                 )
+                             }
+)
+
+# combine variable features
+names(var.genes.by.stage) <- stages
+var.genes <- sort(unique(unlist(var.genes.by.stage)))
+print(paste0("Number of variable genes: ", length(var.genes)))
+object@var.genes <- var.genes
+```
+
+# Load UMAP coordinates
+
+```{r loadUMAP}
+umapCoord <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_4_days_merged/final_umap2Dcoordinates_lab_4_days_merged.csv",
+                        sep = ",",
+                        header = TRUE)
+object@tsne.y <- umapCoord
+names(object@tsne.y) <- c("tSNE1", "tSNE2")
+
+plotDays <- plotDim(object, reduction.use = "tsne", 'day', plot.title = "") +
+    xlab('UMAP_1') +
+    ylab('UMAP_2')
+plotDays + theme(legend.position = "none")
+
+grid.newpage()
+grid.draw(g_legend(plotDays))
+```
+
+# Remove outliers
+
+```{r rmOutliers}
+# Remove outliers
+# Calculate a k-nearest neighbor graph
+set.seed(seed)
+object <- calcKNN(object, nn=knn)
+outliers <- knnOutliers(object,
+                        nn.1=1,
+                        nn.2=knn,
+                        x.max=10,
+                        slope.r=1.3,
+                        int.r=2.1,
+                        slope.b=0.75,
+                        int.b=6.2,
+                        title = paste0("Identifying Outliers by k-NN Distance")
+)
+
+# Subset object to eliminate outliers
+print(paste0("Number of removed outliers: ", length(outliers)))
+
+table(object@group.ids[outliers,c("singleTP_celltype", "singleTP_res1")] %>%
+          arrange(singleTP_res1) %>%
+          arrange(singleTP_celltype)) %>%
+    kbl(caption = "Repartition of the outliers among clusters\n(from single time point analysis)") %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+cells.keep <- setdiff(colnames(object@logupx.data), outliers)
+object <- urdSubset(object, cells.keep = cells.keep)
+```
+
+```{r save1}
+saveRDS(object, file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/trajectory/ciml5/paramOptim/rdsObjects/trimmedObject.rds")
+```
+
+```{r setup3, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = FALSE,
+  echo = FALSE
+)
+```
+
+```{r load1}
+object <- readRDS(file="/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/trajectory/ciml5/paramOptim/rdsObjects/trimmedObject.rds")
+```
+
+```{r setup4, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  echo = TRUE
+)
+```
+
+# Calculate diffusion map (DM)
+
+```{r CalcDM}
+root.cells <- rownames(object@meta)[object@meta$day=="Day_04"]
+if (sigma == "NULL"){
+    if (knn == "NULL"){
+        set.seed(seed)
+        object <- calcDM(object,
+                         dcs.store = 50
+        )
+    } else {
+        set.seed(seed)
+        object <- calcDM(object,
+                         knn=knn,
+                         dcs.store = 50
+        )
+    }
+} else {
+    if (knn == "NULL"){
+        set.seed(seed)
+        object <- calcDM(object,
+                         dcs.store = 50,
+                         sigma.use=sigma
+        )
+    } else {
+        set.seed(seed)
+        object <- calcDM(object,
+                         knn=knn,
+                         dcs.store = 50,
+                         sigma.use=sigma
+        )
+    }
+}
+```
+
+```{r saveDM}
+saveRDS(object@dm,
+        file = paste0(PATH_RDS, "dm_SIGMA.", sigma, "_KNN.", knn, ".rds")
+)
+```
+
+```{r plotDM_colDays}
+colors.day <- rainbow(length(unique(object@group.ids$day)))
+plotDimArray(object = object,
+             reduction.use = "dm",
+             dims.to.plot = 1:18,
+             label="day",
+             plot.title="",
+             outer.title=paste0("Day - Diffusion Map Sigma ", sigma, "\n"),
+             legend=F,
+             alpha=0.3,
+             discrete.colors=colors.day
+)
+
+grid.newpage()
+grid.draw(g_legend(plotDays))
+```
+
+```{r, eval=FALSE, echo=FALSE}
+plotDim3D(
+  object,
+  'day',
+  label.type = "search",
+  reduction.use = c("dm"),
+  view = NULL,
+  dim.1 = 1,
+  dim.2 = 2,
+  dim.3 = 9,
+  w.1 = NULL,
+  w.2 = NULL,
+  w.3 = NULL,
+  cells = NULL,
+  alpha = 0.05,
+  size = 4,
+  title = NULL,
+  title.cex = 3,
+  title.line = 0,
+  bounding.box = T,
+  xlab = NULL,
+  ylab = NULL,
+  zlab = NULL,
+  continuous.colors = NULL,
+  continuous.color.limits = NULL,
+  discrete.colors = colors.day
+)
+```
+
+```{r plotDM_colTipsClusters}
+tips_cells <- cellsInCluster(object, "day", "Day_11")
+renamed_tips <- gsub("11_", "", object@group.ids[rownames(object@group.ids) %in% tips_cells, 'singleTP_res1'])
+object@group.ids[rownames(object@group.ids) %in% tips_cells, "tip.clusters"] <- renamed_tips
+
+object@group.ids$col_clusters <- ifelse(is.na(object@group.ids$tip.clusters), "not a tip cell", object@group.ids$tip.clusters)
+colors.tips <- c(rainbow(length(sort(unique(object@group.ids$col_clusters)))-1), 'grey')
+names(colors.tips) <- sort(unique(object@group.ids$col_clusters))
+plotDimArray(object = object,
+             reduction.use = "dm",
+             dims.to.plot = 1:18,
+             label="col_clusters",
+             plot.title="",
+             outer.title=paste0("tip.clusters - Diffusion Map Sigma ", sigma, "\n"),
+             legend=F,
+             alpha=0.3,
+             discrete.colors=colors.tips
+)
+
+p1 <- plotDim(object, 'col_clusters', discrete.colors = colors.tips)
+grid.newpage()
+grid.draw(g_legend(p1))
+```
+
+
+```{r eval=FALSE, echo=FALSE}
+plotDim3D(
+  object,
+  'tip.clusters',
+  label.type = "search",
+  reduction.use = c("dm"),
+  view = NULL,
+  dim.1 = 1,
+  dim.2 = 2,
+  dim.3 = 9,
+  w.1 = NULL,
+  w.2 = NULL,
+  w.3 = NULL,
+  cells = NULL,
+  # cells = cellsInCluster(object, clustering = "tip.clusters", cluster = c("6","8","9","18")),
+  alpha = 0.4,
+  size = 4,
+  title = NULL,
+  title.cex = 3,
+  title.line = 0,
+  bounding.box = T,
+  xlab = NULL,
+  ylab = NULL,
+  zlab = NULL,
+  continuous.colors = NULL,
+  continuous.color.limits = NULL,
+  discrete.colors = colors.use
+  # discrete.colors = colors.use[names(colors.use) %in% c("6","8","9","18")]
+)
+```
+
+# Calculate pseudotime (PT)
+
+```{r floodPT}
+set.seed(seed)
+flood.result <- floodPseudotime(object,
+                                root.cells=root.cells,
+                                n=floodNsim,
+                                minimum.cells.flooded=2,
+                                verbose=F
+)
+saveRDS(flood.result, file = paste0(PATH_RDS, "flood_Nsim.", floodNsim, ".rds"))
+```
+
+
+```{r floodPTprocess}
+set.seed(seed)
+object <- floodPseudotimeProcess(object,
+                                 flood.result,
+                                 floods.name="pseudotime",
+                                 max.frac.NA=0.4,
+                                 pseudotime.fun=mean,
+                                 stability.div=20
+)
+
+pseudotimePlotStabilityOverall(object)
+plotDimArray(object = object,
+             reduction.use = "dm",
+             dims.to.plot = 1:18,
+             label = "pseudotime",
+             plot.title = "",
+             outer.title = "Diffusion Map labeled by pseudotime",
+             legend = F,
+             alpha = 0.4
+)
+
+plotDim(object, reduction.use = "tsne", "pseudotime", plot.title = "Pseudotime") +
+    xlab("UMAP_1") +
+    ylab("UMAP_2")
+plotDists(object, "pseudotime", "day", plot.title = "Pseudotime by day")
+```
+
+```{r savePT}
+saveRDS(object,
+        file = paste0(PATH_RDS, "object_withDMandPT.rds")
+)
+```
+
+```{r setupBis, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  echo = TRUE
+)
+```
+
+# Define tips
+
+```{r tipsPlot}
+plotDim(
+    object,
+    "col_clusters",
+    discrete.colors = colors.tips,
+    reduction.use = "tsne",
+    plot.title = "Leiden clusters -\nfrom Seurat analysis",
+    legend = FALSE) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank()
+    ) +
+    xlab("UMAP_1") +
+    ylab("UMAP_2")
+
+p1 <- plotDim(object, 'col_clusters', discrete.colors = colors.tips)
+grid.newpage()
+grid.draw(g_legend(p1))
+```
+
+# Biased random walks
+
+```{r performPTlogistic}
+set.seed(seed)
+object.ptlogistic <- pseudotimeDetermineLogistic(object,
+                                                 "pseudotime",
+                                                 optimal.cells.forward=cellsForward,
+                                                 max.cells.back=cellsBack,
+                                                 do.plot = T
+)
+
+# Bias the transition matrix according to pseudotime
+set.seed(seed)
+object.biased.tm <- as.matrix(pseudotimeWeightTransitionMatrix(object,
+                                                               "pseudotime",
+                                                               logistic.params=object.ptlogistic
+))
+
+# Simulate the biased random walks from each tip
+set.seed(seed)
+object.walks <- simulateRandomWalksFromTips(object,
+                                            tip.group.id="tip.clusters",
+                                            root.cells=root.cells,
+                                            transition.matrix = object.biased.tm,
+                                            max.steps = RWmaxSteps,
+                                            n.per.tip = ifelse(RWNsim == 2, 2 * length(tips_cells), RWNsim),
+                                            verbose = F
+)
+
+# Process the biased random walks into visitation frequencies
+set.seed(seed)
+object <- processRandomWalksFromTips(object, object.walks, verbose = F)
+
+saveRDS(object, file = paste0(PATH_RDS, "object_withRW_cellsBandF.", cellsForward, "-", cellsBack, "_RWmaxSteps.", RWmaxSteps, "_RWNsim.", ifelse(RWNsim == 2, 2 * length(tips_cells), RWNsim), ".rds"))
+```
+
+# Build tree
+
+```{r buildTree}
+# Load the cells used for each tip into the URD object
+object.tree <- loadTipCells(object, "tip.clusters")
+# Build the tree
+set.seed(seed)
+object.tree <- buildTree(object.tree,
+                         tips.use = levels(as.factor(object.tree@group.ids$tip.clusters)),
+                         pseudotime = "pseudotime",
+                         divergence.method = treeMeth,
+                         cells.per.pseudotime.bin = cellsPerPTbin,
+                         bins.per.pseudotime.window = binsPerPTwindow,
+                         save.all.breakpoint.info = T,
+                         p.thresh = treePtreshold,
+                         min.cells.per.segment = 0
+)
+```
+
+# Vizualisation {.tabset .tabset-pills .tabset-fade}
+
+## General information
+
+```{r plot-generalInfo}
+plotTree(object.tree, title="Labelled segments", tree.size = 0.3, label.segments = T)
+
+plotTree(object.tree, "day", title="Developmental Stage", tree.size = 0.3) +
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Clusters from the single time point clustering
+
+```{r plot-clusters, results='asis', out.width='20%', fig.align='default'}
+# loop over the clusters of singleTP_res1
+for (cluster in levels(factor(object.tree@group.ids$singleTP_res1, levels = c(
+    "4_1", "4_2", "4_3", "4_4", "4_5", "4_6", "4_7", "4_8", "4_9", "4_10", "4_11", "4_12", "4_13", "4_14", "4_15",
+    "5_1", "5_2", "5_3", "5_4", "5_5", "5_6", "5_7", "5_8", "5_9", "5_10", "5_11", "5_12", "5_13", "5_14",
+    "6_1", "6_2", "6_3", "6_4", "6_5", "6_6", "6_7", "6_8", "6_9", "6_10", "6_11", "6_12", "6_13", "6_14", "6_15", "6_16",
+    "11_1", "11_2", "11_3", "11_4", "11_5", "11_6", "11_7", "11_8", "11_9", "11_10", "11_11", "11_12", "11_13", "11_14", "11_15", "11_16", "11_17", "11_18", "11_19", "11_20"
+)))){
+    
+    if (!grepl("^4_", cluster)){
+        # create new group.id with the cluster only
+        cellsCluster <- cellsInCluster(object.tree, "singleTP_res1", cluster)
+        object.tree@group.ids[rownames(object.tree@group.ids) %in% cellsCluster, "clusterOI"] <- object.tree@group.ids[rownames(object.tree@group.ids) %in% cellsCluster, "singleTP_res1"]
+        
+        # plot the cluster of interest
+        print(plotTree(object.tree, "clusterOI", title = cluster, tree.size = 0.3, cells.highlight = cellsCluster) +
+                  theme(plot.title = element_text(hjust = 0.5)))
+        
+        # remove the metadata
+        object.tree@group.ids$clusterOI <- NULL
+    }
+}
+
+```
+
+## Gene of interest
+
+```{r plot-goi, results='asis', out.width='20%', fig.align='default'}
+# Load list of genes of interest
+goi <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/inputData/other/genes_of_interest3-scRNAseq.tsv", sep = ",")
+goiList <- goi$V1
+
+for (gene in goiList){
+    print(plotTree(object.tree, gene, title = gene, tree.size = 0.3, cells.highlight = whichCells(object.tree, gene, c(0.1, 1000)), cells.highlight.size = 0.5) +
+                  theme(plot.title = element_text(hjust = 0.5)))
+}
+```
+
+# Save object
+
+```{r}
+saveRDS(object.tree, file = paste0(PATH_RDS, "object_tree_METH.", treeMeth, "_cellsPerPTbin.", cellsPerPTbin, "binsPerPTwindow.", binsPerPTwindow, ".rds"))
+```
+
+```{r, eval=FALSE, echo=FALSE}
+object.tree <- readRDS(file = paste0(PATH_RDS, "object_tree_METH.", treeMeth, "_cellsPerPTbin.", cellsPerPTbin, "binsPerPTwindow.", binsPerPTwindow, ".rds"))
+object <- readRDS(paste0(PATH_RDS, "object_withRW_cellsBandF.", cellsForward, "-", cellsBack, "_RWmaxSteps.", RWmaxSteps, "_RWNsim.", ifelse(RWNsim == 2, 2 * length(tips_cells), RWNsim), ".rds"))
+shortTree <- loadTipCells(object, "tip.clusters")
+tips.to.build <- c("16","18","8","9","6","4", "14")
+
+set.seed(seed)
+shortTree <- buildTree(shortTree,
+                         tips.use = tips.to.build,
+                         pseudotime = "pseudotime",
+                         divergence.method = treeMeth,
+                         cells.per.pseudotime.bin = cellsPerPTbin,
+                         bins.per.pseudotime.window = binsPerPTwindow,
+                         save.all.breakpoint.info = T,
+                         p.thresh = treePtreshold,
+                         min.cells.per.segment = 0
+)
+```
+
+```{r plotDual, eval=FALSE, echo=FALSE}
+plotTree(shortTree, "day")
+plotTreeDual(object.tree, "Pax3", "Tbx1")
+```
+
