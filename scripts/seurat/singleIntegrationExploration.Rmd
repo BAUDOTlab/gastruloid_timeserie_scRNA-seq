@@ -117,6 +117,18 @@ colors.celltype <- setNames(colors.table$blind_friendly[!is.na(colors.table$tran
 colors.stage <- setNames(c("#bb573b", "#ac9d3e", "#5aaf6a", "#7564b9", "#b94c84", "#ba4b7d", "#90b03d", "#60a756", "#45c097", "#5e8bd5", "#6d71d8", "#573585", "#bd80d5", "#b853a2", "#ba4b7d"), c("Day_04", "Day_05", "Day_06", "Day_07", "Day_10", "Day_11", "E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5"))
 ```
 
+```{r setup2, eval=TRUE, include=FALSE}
+bindingIsLocked("params", env = .GlobalEnv)
+unlockBinding("params", env = .GlobalEnv)
+fig.folder <- file.path("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5", dataset, "figures/")
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  
+  # figures
+  fig.path = fig.folder
+)
+```
 
 # Load data
 
