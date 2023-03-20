@@ -1,0 +1,437 @@
+---
+author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+    html_document:
+        theme:
+            bootswatch: yeti
+        toc: yes
+        toc_float:
+          collapsed: false
+          smooth_scroll: true
+        number_sections: yes
+        df_print: kable
+        code_folding: hide
+    pdf_document:
+        number_sections: yes
+        toc: yes
+        toc_depth: 3
+        keep_tex: no
+title: |
+  | lab_day_11 : 
+  | specific cardiomyocytes markers
+---
+
+
+<!-- Javascript for zooming on figures (adapted from: https://stackoverflow.com/questions/40401680) -->
+
+<!-- Jquery import conflicts with DT::datatable so needs to be commented here -->
+<!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script> -->
+
+<style>
+.zoomDiv {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 50;
+  transform: translate(-50%, -50%);
+  background-color: #FFFFFF;
+  box-shadow: 0px 0px 50px #888888;
+  width: fit-content;
+  max-width: 90%;
+  max-height: 90%;
+  overflow: auto;
+}
+
+.zoomImg {
+  width: 150%;
+}
+</style>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    $('body').prepend("<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>");
+    // onClick for all img except the zoomed one and link ones (filter)
+    // use 'img.zoom' and out.extra='class=\"zoom\"' in chunk to specify manually which chunk images can be zoomed
+    $('img:not(.zoomImg)').filter(':not(a *)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src'));
+      $('.zoomDiv').show();
+    });
+    // onClick function for hiding div
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').hide();
+    });
+  });
+</script>
+
+```{r setup, include=FALSE, eval=TRUE}
+options(knitr.purl.inline = TRUE)
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  
+  # text output
+  echo = TRUE,
+  results = 'hold',
+  warning = FALSE,
+  error = FALSE,
+  message = FALSE,
+  strip.white = TRUE,
+  
+  # code decoration
+  #tidy = TRUE,
+  tidy.opts = list(width.cutoff = 90),
+  comment = '',
+  attr.output='.numberLines',
+  
+  # plots
+  #fig.path = "figure/",      # is set later, in chunk setup2
+  fig.show = "asis",         # tuned to "hold" in multiple plots chunk
+  dev = c('png', 'pdf'),
+  fig.width = 8,
+  fig.height = 8,
+  #fig.asp=1.3               # fig.height = fig.width * fig.asp
+  #out.extra = 'style="border:5px solid orange"'     # orange box arround plots
+  fig.align = "center"       # should be tuned to default in multiple plots chunk
+)
+```
+
+```{r setup2, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(
+  # code evaluation
+  eval = TRUE,
+  
+  # figures
+  fig.path = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/figures/"
+)
+```
+
+```{r setupAnalysis, eval=TRUE, include=FALSE}
+suppressPackageStartupMessages(library(Seurat))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(tibble))
+suppressPackageStartupMessages(library(scales))
+suppressPackageStartupMessages(library(patchwork))
+suppressPackageStartupMessages(library(kableExtra))
+suppressPackageStartupMessages(library(DT))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(gridExtra))
+
+source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/extract_topn.R")
+source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/add_dominantMetadata.R")
+source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/00_generalDeps.R")
+
+dataset <- "lab_day_11"
+
+colors.table <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/inputData/InputTables/ClusterColors.tsv", sep="\t", header=T, comment.char="", as.is=T)
+colors.celltype <- setNames(colors.table$blind_friendly[!is.na(colors.table$transferred_identity)], colors.table$transferred_identity[!is.na(colors.table$transferred_identity)])
+colors.stage <- setNames(c("#bb573b", "#ac9d3e", "#5aaf6a", "#7564b9", "#b94c84", "#ba4b7d", "#90b03d", "#60a756", "#45c097", "#5e8bd5", "#6d71d8", "#573585", "#bd80d5", "#b853a2", "#ba4b7d"), c("Day_04", "Day_05", "Day_06", "Day_07", "Day_10", "Day_11", "E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5"))
+```
+
+
+# Load data
+
+```{r loadData}
+do.scale <- FALSE
+pca.npcs <- 50
+top.pcs <- 30
+general.seed <- 17
+top.markers <- 10
+
+SO <- readRDS("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/rdsObjects/03_WF_onSinglets_lab_day_11.rds")
+celltypes <- read.table(
+    file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/cellIdentitiesPredictions_final_lab_day_11.csv",
+    sep = ",",
+    header = TRUE)
+umap2d <- read.table(
+    file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/final_umap2Dcoordinates_lab_day_11.csv",
+    sep = ",",
+    header = TRUE)
+SO[["umap2d"]] <- CreateDimReducObject(embeddings = as.matrix(umap2d), key = "UMAP2d_")
+SO <- AddMetaData(SO, metadata = celltypes$predicted.id, col.name = "celltype")
+```
+
+
+```{r overview, out.width='50%', fig.show='hold'}
+clusterResName <- "RNA_snn_res.1"
+Idents(SO) <- clusterResName
+clustersColor <- setNames(hue_pal()(length(levels(SO@meta.data[,clusterResName]))), levels(SO@meta.data[,clusterResName]))
+pover1 <- DimPlot(
+    SO,
+    reduction = "umap2d",
+    pt.size = 0.8,
+    label = FALSE,
+    cols = clustersColor[levels(Idents(SO))]) +
+    NoLegend() +
+    ggtitle(paste0(dataset, " : clusters at resolution 1")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+pover1 <- LabelClusters(pover1, id = "ident",  fontface = "bold", size = 5)
+
+
+Idents(SO) <- SO@meta.data$celltype
+pover2 <- DimPlot(
+    SO,
+    reduction = "umap2d",
+    pt.size = 0.8,
+    label = FALSE) +
+    ggtitle(paste0(dataset, " : celltype identities")) +
+    NoLegend() +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank())
+#pover2 <- LabelClusters(pover2, id = "ident",  fontface = "bold", size = 5)
+
+p1 <- DimPlot(SO, reduction = "umap2d")
+p2 <- cowplot::get_legend(p1)
+
+pover1
+pover2
+grid.newpage()
+grid.draw(p2)
+```
+
+# Differential expression of the cluster 18 against the cluster 16 {.tabset  .tabset-pills .tabset-fade}
+
+## DimPlot
+
+```{r dimplot-18versus16, out.width='50%'}
+cellsData <- data.frame(SO@reductions[["umap2d"]]@cell.embeddings, SO@meta.data$RNA_snn_res.1)
+colnames(cellsData) <- c(colnames(SO@reductions[["umap2d"]]@cell.embeddings), "cluster")
+
+pinterest <- ggplot(cellsData[c('UMAP2d_1', 'UMAP2d_2')], # Omit the column used for facetting to get all points repeated in all facets
+       aes( x = UMAP2d_1,
+            y = UMAP2d_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData[cellsData$cluster %in% c(16,18),], # Now provide data including column for facetting
+                aes(color = cluster),
+                size  = 1.2) +
+    scale_fill_manual(values = clustersColor[c(16,18)], aesthetics = "color") +
+    theme_void() +
+    ggtitle(paste0(dataset, " : expected myocytes (18)\nand paraxial mesoderm of interest (16) clusters")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank(),
+          legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=8, alpha = 1)))
+
+pinterest
+```
+
+## Top 20 markers table of cluster 18 against cluster 16
+
+pct.1 refers to the percentage of cells where the feature is detected in the cluster 18.  
+pct.2 refers to the percentage of cells where the feature is detected in the cluster 16.
+
+<!-- A positive value of the `avg_log2FC` means that the gene is a marker of the cluster 18. -->
+<!-- In the opposite, a negative value of the `avg_log2FC` means that the gene is a marker of the cluster 16. -->
+
+```{r markers-18versus16}
+Idents(SO) <- clusterResName
+markers18vs16 <- FindMarkers(SO, ident.1 = "18", ident.2 = "16", only.pos = TRUE)
+markers18vs16 <- rownames_to_column(markers18vs16, var = "gene")
+markers18vs16 <- markers18vs16[order(-markers18vs16$avg_log2FC), ]
+markers18vs16 <- markers18vs16[, c(1,3:5,2,6)]
+
+write.table(x = markers18vs16, file = paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/markers_min.pct_logFC_default_", dataset, "_res_1_clusters_18vs16.csv"), sep = ",", row.names = F, col.names = T)
+
+topNmarkers <- extract_topn(markers18vs16, topn = 20)
+
+write.table(x = topNmarkers, file = paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/top_20_markers_", dataset, "_res_1_clusters_18vs16.csv"), sep = ",", row.names = F, col.names = T)
+
+datatable(topNmarkers, rownames = FALSE, filter = "top", options = list(pageLength = 5, scrollX=T))
+```
+
+## FeaturePlots of the top 20 markers
+
+```{r featurePlot-18versus16, out.width='20%', fig.align='default'}
+invisible( lapply( topNmarkers[["gene"]], function(featureName) {
+    print( FeaturePlot( SO, features = featureName, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"), order = TRUE) +
+               theme_void() +
+               NoLegend() +
+               CenterTitle())
+               # theme( axis.title.x = element_blank(),
+               #        axis.title.y = element_blank(),
+               #        legend.position = "none"))
+}))
+```
+
+## ViolinPlots of the markers
+
+```{r violinPlots-18versus16, results='asis', out.width='20%', fig.align='default'}
+# with courtesy of Lionel Spinelli and Romain Fenouil
+
+# Violinplot for expression value of marker genes by cluster (+ number of 'zero' and 'not zero' cells)
+invisible( lapply( topNmarkers[["gene"]], violinFeatureByCluster, seuratObject = SO, clustersColor = clustersColor))
+```
+
+<!-- ## Top 20 markers table of cluster 16 against cluster 18 -->
+
+<!-- pct.1 refers to the percentage of cells where the feature is detected in the cluster 18.   -->
+<!-- pct.2 refers to the percentage of cells where the feature is detected in the cluster 16. -->
+
+<!-- ```{r markers-16versus18} -->
+<!-- Idents(SO) <- clusterResName -->
+<!-- markers18vs16 <- FindMarkers(SO, ident.1 = "16", ident.2 = "18", only.pos = TRUE) -->
+<!-- markers18vs16 <- rownames_to_column(markers18vs16, var = "gene") -->
+<!-- markers18vs16 <- markers18vs16[order(-markers18vs16$avg_log2FC), ] -->
+<!-- markers18vs16 <- markers18vs16[, c(1,3:5,2,6)] -->
+
+<!-- write.table(x = markers18vs16, file = paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/markers_min.pct_logFC_default_", dataset, "_res_1_clusters_16vs18.csv"), sep = ",", row.names = F, col.names = T) -->
+
+<!-- topNmarkers <- extract_topn(markers18vs16, topn = 20) -->
+
+<!-- write.table(x = topNmarkers, file = paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/top_20_markers_", dataset, "_res_1_clusters_16vs18.csv"), sep = ",", row.names = F, col.names = T) -->
+
+<!-- datatable(topNmarkers, rownames = FALSE, filter = "top", options = list(pageLength = 5, scrollX=T)) -->
+<!-- ``` -->
+
+<!-- ## FeaturePlots of the top 20 markers -->
+
+<!-- ```{r featurePlot-16versus18, out.width='20%', fig.align='default'} -->
+<!-- invisible( lapply( topNmarkers[["gene"]], function(featureName) { -->
+<!--     print( FeaturePlot( SO, features = featureName, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"), order = TRUE) + -->
+<!--                theme_void() + -->
+<!--                NoLegend() + -->
+<!--                CenterTitle()) -->
+<!--                # theme( axis.title.x = element_blank(), -->
+<!--                #        axis.title.y = element_blank(), -->
+<!--                #        legend.position = "none")) -->
+<!-- })) -->
+<!-- ``` -->
+
+<!-- ## ViolinPlots of the markers -->
+
+<!-- ```{r violinPlots-16versus18, results='asis', out.width='20%', fig.align='default'} -->
+<!-- # with courtesy of Lionel Spinelli and Romain Fenouil -->
+
+<!-- # Violinplot for expression value of marker genes by cluster (+ number of 'zero' and 'not zero' cells) -->
+<!-- invisible( lapply( topNmarkers[["gene"]], violinFeatureByCluster, seuratObject = SO, clustersColor = clustersColor)) -->
+<!-- ``` -->
+
+
+# Differential expression among Cardiomyocytes {.tabset  .tabset-pills .tabset-fade}
+
+## Dimplot
+
+```{r dimplot-cardiomyocytes, out.width='50%', fig.show='hold', fig.align='default'}
+Idents(SO) <- SO$RNA_snn_res.1
+bothFilters <- subset(SO, idents = c(6,8,9), subset = celltype == "Cardiomyocytes")
+
+cellsData <- data.frame(bothFilters@reductions[["umap2d"]]@cell.embeddings, bothFilters@meta.data$RNA_snn_res.1)
+colnames(cellsData) <- c(colnames(bothFilters@reductions[["umap2d"]]@cell.embeddings), "cluster")
+
+pbothFilters <- ggplot(cellsData[c('UMAP2d_1', 'UMAP2d_2')], # Omit the column used for facetting to get all points repeated in all facets
+       aes( x = UMAP2d_1,
+            y = UMAP2d_2)) +
+    geom_point( alpha = .4,
+                size  = 1,
+                color = "grey") +
+    geom_point( data = cellsData, # Now provide data including column for facetting
+                aes(color = cluster),
+                size  = 1.2) +
+    scale_fill_manual(values = clustersColor[cellsData$cluster],
+                      aesthetics = "color",
+                      breaks = sort(as.integer(levels(as.factor(cellsData$cluster)))),
+                      name = "cluster") +
+    # scale_fill_manual(values = clustersColor[cellsData$cluster], aesthetics = "color") +
+    theme_void() +
+    ggtitle(paste0(dataset, " : subset on clusters 6, 8, 9 and 18\nand on Cardiomyocytes")) +
+    theme(plot.title = element_text(hjust = 0.5),
+          axis.text = element_blank(),
+          line = element_blank(),
+          legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=8, alpha = 1),
+                                 nrow = 1, byrow = TRUE))
+
+pbothFilters
+```
+
+
+## Top 20 markers of each cluster 
+
+pct.1 refers to the percentage of cells where the feature is detected in the indicated cluster.  
+pct.2 refers to the percentage of cells where the feature is detected in the all the other clusters.
+
+```{r markers-cardiomyocytes}
+Idents(bothFilters) <- clusterResName
+markersCadio <- FindAllMarkers(bothFilters, only.pos = TRUE)
+markersCadio <- markersCadio[order(-markersCadio$avg_log2FC), ]
+markersCadio <- markersCadio[order(markersCadio$cluster), ]
+markersCadio <- markersCadio[ , c(6, 7, 2:4, 1, 5)]
+# markersCadio <- rownames_to_column(markersCadio, var = "gene")
+# markersCadio <- markersCadio[order(-markersCadio$avg_log2FC), ]
+# markersCadio <- markersCadio[, c(1,3:5,2,6)]
+
+write.table(x = markersCadio, file = paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/markers_min.pct_logFC_default_", dataset, "_res_1_cardioMandClusters.6-8-9.csv"), sep = ",", row.names = F, col.names = T)
+
+topNmarkers <- extract_topn(markersCadio, topn = 20)
+
+write.table(x = topNmarkers, file = paste0("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/top_20_markers_", dataset, "_res_1_cardioMandClusters.6-8-9.csv"), sep = ",", row.names = F, col.names = T)
+
+datatable(topNmarkers, rownames = FALSE, filter = "top", options = list(pageLength = 5, scrollX=T))
+```
+
+## FeaturePlots of the markers {.tabset  .tabset-pills .tabset-fade}
+
+```{r featurePlot-cardiomyocytes, results='asis', out.width='20%', fig.align='default'}
+topMarkers = by( markersCadio, markersCadio[["cluster"]], function(x)
+{
+  # Filter markers based on adjusted PValue
+  x = x[ x[["p_val_adj"]] < 0.005, , drop = FALSE]
+  # Sort by decreasing logFC
+  x = x[ order(abs(x[["avg_log2FC"]]), decreasing = TRUE), , drop = FALSE ]
+  # Return top ones
+  return( if(is.null(  top.markers )) head( x, n =  10 ) else head( x, n =  min(top.markers, 10) ))
+})
+
+invisible( lapply( names( topMarkers), function(clusterName)
+{
+  cat("### Cluster <span style='border-radius: 3px border: 3px solid ", clustersColor[clusterName], " padding:0px 2px'>", clusterName, "</span>\n")
+  
+  # Highlight cells of current cluster on a dimreduc plot
+  highlightClusterPlot(clusterName, seuratObject = bothFilters, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"))
+  
+  # Plots expression on projected cells
+  invisible( lapply( topMarkers[[clusterName]][["gene"]], function(featureName)
+  {
+    print( FeaturePlot( bothFilters, features = featureName, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"), order = TRUE) +
+               theme_void() +
+               NoLegend() +
+               CenterTitle())
+               # theme( axis.title.x = element_blank(),
+               #        axis.title.y = element_blank(),
+               #        legend.position = "none"))
+  }))
+  
+  cat(" \n \n") # Required for '.tabset'
+}))
+```
+
+## ViolinPlots of the markers {.tabset  .tabset-pills .tabset-fade}
+
+```{r violinPlots-cardiomyocytes, results='asis', out.width='20%', fig.align='default'}
+# with courtesy of Lionel Spinelli and Romain Fenouil
+invisible( lapply( names( topMarkers), function(clusterName)
+{
+  cat("### Cl. <span style='border-radius: 3px border: 3px solid ", clustersColor[clusterName], " padding:0px 2px'>", clusterName, "</span>\n")
+  
+  # Remind cluster name in an empty figure to keep consistent alignment of panels between tabs
+  plot( c( 0, 1), c( 0, 1), ann = F, bty = 'n', type = 'n', xaxt = 'n', yaxt = 'n')
+  text( x = 0.5, y = 0.5, paste( "Cluster", clusterName), cex = 2, col = clustersColor[clusterName])
+  
+  # Violinplot for expression value of marker genes by cluster (+ number of 'zero' and 'not zero' cells)
+  invisible( lapply( topMarkers[[clusterName]][["gene"]], violinFeatureByCluster, seuratObject = bothFilters, clustersColor = clustersColor))
+  
+  cat(" \n \n") # Required for '.tabset'
+}))
+```
+
+<!-- To render  -->
+
+<!-- for i in lab_day_11; do nohup Rscript -e "rmarkdown::render('cardiomyocytesMarkers_day11_cl.6-8-9.Rmd', output_file = './cardiomyocytesMarkers_day11_cl.6-8-9.html')" ; done & -->
