@@ -3,12 +3,12 @@ library(Matrix)
 library(harmony)
 library(cowplot)
 
-
+# Path management
 basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis"
 inputs.folder <- file.path(basePath, "inputData")
 atlas.folder <- file.path(inputs.folder, "atlas")
 
-
+# Load data and create Seurat object
 atlas.metadata <- read.table(file.path(atlas.folder, "meta.tab") , sep="\t" , header=TRUE )
 atlas.genes <- read.csv(file.path(atlas.folder, "genes.tsv"), sep="\t", header = FALSE, as.is = TRUE)
 atlas.data <- readMM(file.path(atlas.folder, "raw_counts.mtx"))
@@ -22,10 +22,12 @@ atlas <- CreateSeuratObject(counts = atlas.data, project = "Atlas", min.cells=3,
 rm(atlas.data)
 gc()
 
+# Reduce metadata table to the list of cell in the atlas
 nonFiltered <- intersect(colnames(atlas), atlas.metadata$cell)
 atlas.metadata <- atlas.metadata[which(atlas.metadata$cell %in% nonFiltered),]
 gc()
 
+# Normalize and add other metadata
 atlas <- NormalizeData(atlas, normalization.method = "LogNormalize", verbose=FALSE)
 atlas <- AddMetaData(object = atlas, metadata = atlas.metadata$stage, col.name = "day")
 atlas <- AddMetaData(object = atlas, metadata = atlas.metadata$celltype, col.name = "celltype")
@@ -35,6 +37,7 @@ atlas$model <- "Embryos"
 rm(atlas.metadata, nonFiltered)
 gc()
 
+# Remove cells according to day or celltype information
 Idents(atlas) <- atlas$day
 atlas.subset <- subset(x = atlas, idents = c("mixed_gastrulation"), invert=T)
 
@@ -45,6 +48,7 @@ atlas.subset <- subset(atlas.subset, idents="Parietal endoderm", invert=T)
 rm(atlas)
 gc()
 
+# preprocess the atlas
 atlas.subset <- FindVariableFeatures(atlas.subset, nfeatures=2000, selection.method = "vst", verbose=FALSE)
 atlas.subset <- ScaleData(atlas.subset, do.scale = FALSE, verbose = FALSE)
 atlas.subset <- RunPCA(atlas.subset, npcs = 50, verbose = FALSE)
@@ -54,9 +58,10 @@ p1 <- DimPlot(object = atlas.subset, reduction = "pca", pt.size = .1, group.by =
 p2 <- VlnPlot(object = atlas.subset, features = "PC_1", group.by = "day", pt.size = .1)
 plot_grid(p1,p2)
 
-
+# Save the preprocessed atlas
 saveRDS(atlas.subset, file.path(atlas.folder, paste0("atlas_preprocessed.rds")))
 
+# Create Umap of the atlas
 top.pcs <- 30
 general.seed <- 17
 atlas.subset <- RunUMAP(atlas.subset, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
