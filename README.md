@@ -1,6 +1,6 @@
 # Time series single-cell RNA sequecing data analysis
 
-This repository contains the rmarkdown scripts and python notebooks used to perform the scRNA-seq data analysis presented in Argiro et al.
+This repository contains the rmarkdown scripts and python notebooks used to perform the scRNA-seq data analysis presented in [Argiro et al.](https://www.biorxiv.org/content/10.1101/2023.05.15.540476v1).
 
 ## Data
 
