@@ -157,7 +157,7 @@ Rscript exportToURD.R
 The file `urdObject_lab_4_days.rds` is created.
 
 
-### Run the URD analysis
+### 2. Run the URD analysis
 
 Due to some package compatibility issues, we set the `urd` environment. We obtained
 the figures Fig.5d-o of the article.
