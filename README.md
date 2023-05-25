@@ -6,7 +6,17 @@ This repository contains the rmarkdown scripts and python notebooks used to perf
 
 ### 1. Experimental data
 
+The experimental data are available in the GEO database. They are registered under the accession number GEO:??? .
+
 ### 2. Atlas reference data
+
+We used the [Pijuan-Sala et al.](http://www.nature.com/articles/s41586-019-0933-9) atlas for the celltype annotation transfer.
+We accessed the data with the following command:
+
+```
+curl https://content.cruk.cam.ac.uk/jmlab/atlas_data.tar.gz > atlas_data.tar.gz
+tar -zxvf atlas_data.tar.gz
+```
 
 ## Seurat analysis
 
