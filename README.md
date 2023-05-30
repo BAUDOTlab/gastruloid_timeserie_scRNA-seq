@@ -111,12 +111,6 @@ A new .Rds file is created and called `99_rawData_filtered_lab_4_days.rds`.
 
 ## cellRank analysis
 
-To use the commands as they are written, move to the cellRank directory.
-
-```
-cd ../cellRank/					# if coming from seurat directory
-```
-
 ### 1. Convert the .Rds file into a .h5ad file
 
 As cellRank is a Python package, the .Rds object obtained from the previous step
@@ -127,7 +121,7 @@ Due to some package compatibility issues, we also need to change the environment
 
 ```
 conda activate convertSO_to_h5ad
-cd ../cellRank
+cd ../cellRank/
 Rscript ./convertSO_to_h5ad.R 99_rawData_filtered_lab_4_days.rds 99_rawData_filtered_lab_4_days.h5Seurat
 ```
 
