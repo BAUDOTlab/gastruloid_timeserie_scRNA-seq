@@ -168,7 +168,7 @@ Rscript -e "rmarkdown::render('11.1_knnOutliers.Rmd', output_file = '../../repor
 
 With this script execution, we also generated the Supplementary Figure S10.
 
-##  Analysis of single-cell gastruloids data integrated with the embryonic atlas
+## Exploration of the integration of each single dataset with the atlas
 
 We generated the figures of the Supplementary Figure 2 by executing the script called `singleIntegrationExploration.Rmd` for each dataset.
 
