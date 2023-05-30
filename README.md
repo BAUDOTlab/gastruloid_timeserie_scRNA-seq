@@ -111,6 +111,12 @@ A new .Rds file is created and called `99_rawData_filtered_lab_4_days.rds`.
 
 ## cellRank analysis
 
+To use the commands as they are written, move to the cellRank directory.
+
+```
+cd ../cellRank/					# if coming from seurat directory
+```
+
 ### 1. Convert the .Rds file into a .h5ad file
 
 As cellRank is a Python package, the .Rds object obtained from the previous step
@@ -139,6 +145,12 @@ jupyter nbconvert --execute --to html cellRank_WOT_lab_4_days_scpMerge.nbconvert
 ```
 
 ## URD analysis
+
+To use the commands as they are written, move to the cellRank directory. Otherwise, change the path of the scripts.
+
+```
+cd ../urd/					# if coming from cellRank of seurat directory
+```
 
 URD is an .R package that uses URD objects. First, we export the seurat object into
 an URD object. Then, we ran the analysis.
