@@ -4,7 +4,7 @@ library(harmony)
 library(cowplot)
 
 # Path management
-basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis"
+basePath <- "../../../seuratAnalysis"
 inputs.folder <- file.path(basePath, "inputData")
 atlas.folder <- file.path(inputs.folder, "atlas")
 

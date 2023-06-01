@@ -1,18 +1,18 @@
 library(Seurat)
 library(ggplot2)
 
-source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/seuratToURD.R")
+source("../utilities/seuratToURD.R")
 
-SO <- readRDS("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/rdsObjects/99_rawData_filtered_lab_4_days.rds")
+SO <- readRDS("../../../seuratAnalysis/ciml5/rdsObjects/99_rawData_filtered_lab_4_days.rds")
 
-umap2d <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_4_days_merged/final_umap2Dcoordinates_lab_4_days_merged.csv", header = TRUE, sep = ",", row.names = 1)
+umap2d <- read.table("../../../seuratAnalysis/ciml5/lab_4_days_merged/final_umap2Dcoordinates_lab_4_days_merged.csv", header = TRUE, sep = ",", row.names = 1)
 SO[["umap"]] <- CreateDimReducObject(embeddings = as.matrix(umap2d), key = "UMAP_")
 
-metadata <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_4_days_merged/metadata_celltypeANDclusters_lab_4_days_merged.csv", header = TRUE, sep = ",", row.names = 1)
-md04 <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_04/metadata_celltypeANDclusters_lab_day_04.csv", header = TRUE, sep = ",", row.names = 1)
-md05 <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_05/metadata_celltypeANDclusters_lab_day_05.csv", header = TRUE, sep = ",", row.names = 1)
-md06 <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_06/metadata_celltypeANDclusters_lab_day_06.csv", header = TRUE, sep = ",", row.names = 1)
-md11 <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/metadata_celltypeANDclusters_lab_day_11.csv", header = TRUE, sep = ",", row.names = 1)
+metadata <- read.table("../../../seuratAnalysis/ciml5/lab_4_days_merged/metadata_celltypeANDclusters_lab_4_days_merged.csv", header = TRUE, sep = ",", row.names = 1)
+md04 <- read.table("../../../seuratAnalysis/ciml5/lab_day_04/metadata_celltypeANDclusters_lab_day_04.csv", header = TRUE, sep = ",", row.names = 1)
+md05 <- read.table("../../../seuratAnalysis/ciml5/lab_day_05/metadata_celltypeANDclusters_lab_day_05.csv", header = TRUE, sep = ",", row.names = 1)
+md06 <- read.table("../../../seuratAnalysis/ciml5/lab_day_06/metadata_celltypeANDclusters_lab_day_06.csv", header = TRUE, sep = ",", row.names = 1)
+md11 <- read.table("../../../seuratAnalysis/ciml5/lab_day_11/metadata_celltypeANDclusters_lab_day_11.csv", header = TRUE, sep = ",", row.names = 1)
 
 md04['day'] <- 'Day_04'
 md05['day'] <- 'Day_05'
@@ -58,4 +58,4 @@ URD <- methods::setClass("URD", slots = c(
 
 
 urdO <- seuratToURD(SO)
-saveRDS(urdO, file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/lineageInference/inputData/lab_data/urdObject_lab_4_days.rds")
+saveRDS(urdO, file = "../../../lineageInference/inputData/lab_data/urdObject_lab_4_days.rds")

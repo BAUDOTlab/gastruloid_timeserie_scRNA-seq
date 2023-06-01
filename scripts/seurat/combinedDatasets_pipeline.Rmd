@@ -201,9 +201,8 @@ rm(df)
 Set either input and output directories.
 
 ```{r base-path}
-#basePath <- "/home/celine/temp2"
-#basePath <- "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis" # local server
-basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
+basePath <- "../../../seuratAnalysis" # local server
+#basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
 ```
 
 ### Input directories

@@ -103,7 +103,7 @@ knitr::opts_chunk$set(
   eval = TRUE,
   
   # figures
-  fig.path = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/figures/"
+  fig.path = "../../../seuratAnalysis/ciml5/lab_day_11/figures/"
 )
 ```
 
@@ -119,13 +119,13 @@ suppressPackageStartupMessages(library(DT))
 suppressPackageStartupMessages(library(grid))
 suppressPackageStartupMessages(library(gridExtra))
 
-source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/extract_topn.R")
-source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/add_dominantMetadata.R")
-source("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/gastruloid_timeserie_scRNA-seq/scripts/utilities/00_generalDeps.R")
+source("../utilities/extract_topn.R")
+source("../utilities/add_dominantMetadata.R")
+source("../utilities/00_generalDeps.R")
 
 dataset <- "lab_day_11"
 
-colors.table <- read.table("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/inputData/InputTables/ClusterColors.tsv", sep="\t", header=T, comment.char="", as.is=T)
+colors.table <- read.table("../../../seuratAnalysis/inputData/InputTables/ClusterColors.tsv", sep="\t", header=T, comment.char="", as.is=T)
 colors.celltype <- setNames(colors.table$blind_friendly[!is.na(colors.table$transferred_identity)], colors.table$transferred_identity[!is.na(colors.table$transferred_identity)])
 colors.stage <- setNames(c("#bb573b", "#ac9d3e", "#5aaf6a", "#7564b9", "#b94c84", "#ba4b7d", "#90b03d", "#60a756", "#45c097", "#5e8bd5", "#6d71d8", "#573585", "#bd80d5", "#b853a2", "#ba4b7d"), c("Day_04", "Day_05", "Day_06", "Day_07", "Day_10", "Day_11", "E6.5", "E6.75", "E7.0", "E7.25", "E7.5", "E7.75", "E8.0", "E8.25", "E8.5"))
 ```
@@ -140,13 +140,13 @@ top.pcs <- 30
 general.seed <- 17
 top.markers <- 10
 
-SO <- readRDS("/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/rdsObjects/03_WF_onSinglets_lab_day_11.rds")
+SO <- readRDS("../../../seuratAnalysis/ciml5/rdsObjects/03_WF_onSinglets_lab_day_11.rds")
 celltypes <- read.table(
-    file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/cellIdentitiesPredictions_final_lab_day_11.csv",
+    file = "../../../seuratAnalysis/ciml5/lab_day_11/cellIdentitiesPredictions_final_lab_day_11.csv",
     sep = ",",
     header = TRUE)
 umap2d <- read.table(
-    file = "/mnt/DATA_4TB/projects/gastruloids_sc_Lescroart/analysis/seuratAnalysis/ciml5/lab_day_11/final_umap2Dcoordinates_lab_day_11.csv",
+    file = "../../../seuratAnalysis/ciml5/lab_day_11/final_umap2Dcoordinates_lab_day_11.csv",
     sep = ",",
     header = TRUE)
 SO[["umap2d"]] <- CreateDimReducObject(embeddings = as.matrix(umap2d), key = "UMAP2d_")
