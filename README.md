@@ -130,11 +130,11 @@ The .h5Seurat file will then be converted to a .h5ad file, readable format for P
 
 ### 2. Run the cellRank analysis
 
-To run the Jupyter notebook, the `veloRossi` environment was set. The Figure 5.b
+To run the Jupyter notebook, the `cellRank` environment was set. The Figure 5.b
 and Figure 5.c were obtained from the cellRank analysis.
 
 ```
-conda activate veloRossi
+conda activate cellRank
 jupyter nbconvert --execute --to html cellRank_WOT_lab_4_days_scpMerge.nbconvert.ipynb
 ```
 
