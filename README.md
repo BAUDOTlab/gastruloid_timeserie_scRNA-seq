@@ -6,7 +6,7 @@ This repository contains the rmarkdown scripts and python notebooks used to perf
 
 ### 1. Experimental data
 
-The experimental data are available in the GEO database. They are registered under the accession number GEO:??? .
+The experimental data are available in the GEO database. They are registered under the accession number GEO: GSE232773 .
 
 ### 2. Atlas reference data
 
