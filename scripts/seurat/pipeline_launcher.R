@@ -115,13 +115,12 @@ if (is.na(opt$input_dataset)){
     cat("You should enter an input dataset among the values:
     - individual dataset analysis
         lab_day_04  lab_day_05
-        lab_day_05bis lab_day_06
-        lab_day_11
+        lab_day_06  lab_day_11
     - time series analysis
         lab_3_days  lab_4_days
         ")
     quit(status = 1)
-} else if (opt$input_dataset %in% c("lab_day_04", "lab_day_05", "lab_day_05bis", "lab_day_06", "lab_day_11")){
+} else if (opt$input_dataset %in% c("lab_day_04", "lab_day_05", "lab_day_06", "lab_day_11")){
     # TEST POUR L'INTEGRATION DES DONNEES
     if (opt$merge){
         callr::rscript("pipeline_launcher.R", cmdargs = "-h")
@@ -161,8 +160,7 @@ if (is.na(opt$input_dataset)){
     cat("You should enter an input dataset among the values:
     - individual dataset analysis
         lab_day_04  lab_day_05
-        lab_day_05bis lab_day_06
-        lab_day_11
+        lab_day_06  lab_day_11
     - time series analysis
         lab_3_days  lab_4_days
     ")
@@ -318,7 +316,7 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
 
 
 
-# if (opt$input_dataset %in% c("lab_day_04", "lab_day_05", "lab_day_05bis", "lab_day_06", "lab_day_11")){
+# if (opt$input_dataset %in% c("lab_day_04", "lab_day_05", "lab_day_06", "lab_day_11")){
 #     rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$input_dataset, ".html"))
 # } else if (opt$input_dataset %in% c("lab_3_ days", "lab_4_days")){
 #     combination <- if (opt$do_integ) "integrated" else "merged"

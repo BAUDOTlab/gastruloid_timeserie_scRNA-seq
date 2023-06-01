@@ -20,7 +20,7 @@ output:
 params:
     dataset:
         value: NA
-        choices: [lab_day_04, lab_day_05, lab_day_05bis, lab_day_06, lab_day_11]
+        choices: [lab_day_04, lab_day_05, lab_day_06, lab_day_11]
 title: |
   | Protocole 1.2:
   | `r params$dataset` integration to the atlas exploration

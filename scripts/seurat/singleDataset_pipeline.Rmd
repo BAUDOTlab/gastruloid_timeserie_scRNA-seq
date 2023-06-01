@@ -24,7 +24,7 @@ params:
         value: FALSE
     dataset:
         value: NA
-        choices: [lab_day_04, lab_day_05, lab_day_05bis, lab_day_06, lab_day_11]
+        choices: [lab_day_04, lab_day_05, lab_day_06, lab_day_11]
     do.integ:
         value: FALSE
     do.merge:
