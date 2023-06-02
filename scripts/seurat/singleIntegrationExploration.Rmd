@@ -1,5 +1,5 @@
 ---
-author: "Céline Chevalier, Anaïs Baudot, Fabienne Lescroart, Laurent Argiro, Stéphane Zaffran"
+author: "Céline Chevalier, Anaïs Baudot"
 date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
 output:
     html_document:
