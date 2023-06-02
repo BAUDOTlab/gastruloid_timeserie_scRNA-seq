@@ -26,17 +26,11 @@ option_list <- list(
                 help="if running multiple time points analysis, whether to merge the data,
                 otherwise, data will be integrated with Seurat integration process"),
     
-#     make_option(c("-l", "--mito_low"), action="store", default=1.5, type='numeric',
-#                 help="lower threshold of mitochondrial expression percentage to filter out", metavar = "[0:99]"),
-    
     make_option(c("-m", "--mito_high"), action="store", default=10, type='numeric',
                 help="", metavar = "[1:100]"),
     
     make_option(c("-q", "--ribo_low"), action="store", default=25, type='numeric',
                 help=""),
-    
-#     make_option(c("-r", "--ribo_high"), action="store", default=45, type='numeric',
-#                 help=""),
     
     make_option(c("-f", "--min_feat"), action="store", default=200, type='integer',
                 help="minimum number of features detected in every cells"),
@@ -214,10 +208,8 @@ param.list <- list(
     dataset = opt$input_dataset,
     do.integ = opt$do_integ,
     do.merge = opt$do_merge,
-#     mito.low = opt$mito_low,
     mito.high = opt$mito_high,
     ribo.low = opt$ribo_low,
-#     ribo.high = opt$ribo_high,
     min.feat = opt$min_feat,
     min.cells = opt$min_cells,
     min.counts = opt$min_counts,
@@ -236,6 +228,7 @@ param.list <- list(
     combine.meth = opt$combine_meth
 )
 
+yaml::write_yaml(param.list, paste0("parametersList_", opt$analysis_name, "_", opt$input_dataset, ".yaml"))
 
 basePath <- "../../../seuratAnalysis" # local server
 #basePath <- "/shared/projects/mothard_in_silico_modeling/seurat_analysis" # IFB server
@@ -286,12 +279,7 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
             # YES and NO, NO and YES
             
             rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
-            # # select pipeline to run according the analysis_name
-            # if (opt$analysis_name == "removedDoublets"){
-            #     rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
-            # } else if (opt$analysis_name == "withoutDoublet_subset"){
-            #     rmarkdown::render("no_df_subset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
-            # }
+
         } else {
             # incompatible options like:
             # new analysis with a pre-existing analysis name OR
@@ -313,21 +301,3 @@ if (opt$input_dataset %in% c("lab_3_days", "lab_4_days")){
         rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$analysis_name, "_", opt$input_dataset, ".html"))
     }
 }
-
-
-
-# if (opt$input_dataset %in% c("lab_day_04", "lab_day_05", "lab_day_06", "lab_day_11")){
-#     rmarkdown::render("singleDataset_pipeline.Rmd", params = param.list, output_file = paste0("singleDataset_", opt$input_dataset, ".html"))
-# } else if (opt$input_dataset %in% c("lab_3_ days", "lab_4_days")){
-#     combination <- if (opt$do_integ) "integrated" else "merged"
-#     rmarkdown::render("combinedDatasets_pipeline.Rmd", params = param.list, output_file = paste0("combinedData_", combination, "_", opt$input_dataset, ".html"))
-# }
-
-#rmarkdown::render("no_df_subset_pipeline.Rmd", params = param.list, output_file = paste0("no_df_subset_", opt$input_dataset, ".html"))
-#rmarkdown::render("no_df_pipeline.Rmd", params = param.list, output_file = paste0("no_df_", opt$input_dataset, ".html"))
-
-
-# l <- list(a="1", b=1, c=list(a="1", b=1))
-# yaml::write_yaml(l, "list.yaml")
-
-

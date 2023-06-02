@@ -88,19 +88,14 @@ knitr::opts_chunk$set(
   strip.white = TRUE,
   
   # code decoration
-  #tidy = TRUE,
   tidy.opts = list(width.cutoff = 90),
   comment = '',
   attr.output='.numberLines',
   
   # plots
-  #fig.path = "figure/",      # is set later, in chunk setup2
-  fig.show = "asis",         # tuned to "hold" in multiple plots chunk
   dev = c('png', 'pdf'),
   fig.width = 8,
   fig.height = 8,
-  #fig.asp=1.3               # fig.height = fig.width * fig.asp
-  #out.extra = 'style="border:5px solid orange"'     # orange box arround plots
   fig.align = "center"       # should be tuned to default in multiple plots chunk
 )
 ```

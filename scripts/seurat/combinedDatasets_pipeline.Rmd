@@ -117,19 +117,15 @@ knitr::opts_chunk$set(
     strip.white = TRUE,
 
     # code decoration
-    #tidy = TRUE,
     tidy.opts = list(width.cutoff = 90),
     comment = '',
     attr.output='.numberLines',
     
     # plots
-    #fig.path = "figure/",      # is set later, in chunk setup2
     fig.show = "asis",         # tuned to "hold" in multiple plots chunk
     dev = c('png', 'pdf'),
     fig.width = 10,
     fig.height = 10,
-    #fig.asp=1.3               # fig.height = fig.width * fig.asp
-    #out.extra = 'style="border:5px solid orange"'     # orange box arround plots
     fig.align = "center"       # should be tuned to default in multiple plots chunk
 )
 ```
@@ -165,10 +161,10 @@ set.seed(general.seed)
 ```
 
 ```{r sourceCodes}
-source("./utilities/extract_topn.R")
-source("./utilities/add_dominantMetadata.R")
-source("./utilities/additionalPlots.R")
-source("./utilities/00_generalDeps.R")
+source("../utilities/extract_topn.R")
+source("../utilities/add_dominantMetadata.R")
+source("../utilities/additionalPlots.R")
+source("../utilities/00_generalDeps.R")
 ```
 
 
@@ -306,11 +302,6 @@ if (dataset == "lab_3_days") {
             file = file.path(baseAnalysis, day, paste0("cellIdentitiesPredictions_final_", day, ".csv")),
             sep = ",",
             header = TRUE)
-        # umap2d <- read.table(
-        #     file = file.path(baseAnalysis, day, paste0("final_umap2Dcoordinates_", day, ".csv")),
-        #     sep = ",",
-        #     header = TRUE)
-        # SO[["umap2d"]] <- CreateDimReducObject(embeddings = as.matrix(umap2d), key = "UMAP2d_")
         SO <- AddMetaData(SO, metadata = celltypes$predicted.id, col.name = "orig.celltype")
     })
     
@@ -328,11 +319,6 @@ if (dataset == "lab_3_days") {
             sep = ",",
             header = TRUE)
         SO <- AddMetaData(SO, metadata = celltypes$predicted.id, col.name = "orig.celltype")
-        # umap2d <- read.table(
-        #     file = file.path(baseAnalysis, day, paste0("final_umap2Dcoordinates_", day, ".csv")),
-        #     sep = ",",
-        #     header = TRUE)
-        # SO[["umap2d"]] <- CreateDimReducObject(embeddings = as.matrix(umap2d), key = "UMAP2d_", assay = DefaultAssay(SO))
     })
     
     names(sep_data.list) <- sep_days
@@ -677,7 +663,6 @@ names(dt) <- c("singleAnn", "combinedAnn", "counts")
 ggplot(dt, aes(singleAnn, combinedAnn, fill = counts)) + # nolint
     geom_tile() +
     geom_text(aes(label = counts), color = "black", size = 2.5, fontface = "bold") +
-    #scale_color_manual(values = c(NA, "black"), na.value = NA) +
     coord_fixed() +
     scale_fill_gradient(low = "white", high = "pink", na.value="white") +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
@@ -701,7 +686,6 @@ invisible(sapply(levels(as.factor(SO@meta.data$day)), function(x) {
     print(ggplot(dt, aes(singleAnn, combinedAnn, fill = counts)) + # nolint
         geom_tile() +
         geom_text(aes(label = counts), color = "black", size = 2.5, fontface = "bold") +
-        #scale_color_manual(values = c(NA, "black"), na.value = NA) +
         coord_fixed() +
         scale_fill_gradient(low = "white", high = "pink", na.value="white") +
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
@@ -1147,7 +1131,6 @@ Idents(SO) <- SO$clusters
 DefaultAssay(SO) <- 'RNA'
 
 markers <- FindAllMarkers(SO, only.pos = TRUE)
-#markers.sign <- markers[markers$p_val_adj < 0.001 & markers$avg_logFC > log(1.5), ]
 markers.sign <- markers[order(-markers$avg_log2FC), ]
 markers.sign <- markers.sign[order(markers.sign$cluster), ]
 markers.sign <- markers.sign[ , c(6, 7, 2:4, 1, 5)]

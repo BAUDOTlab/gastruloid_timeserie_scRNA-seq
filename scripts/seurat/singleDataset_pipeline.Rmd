@@ -135,19 +135,15 @@ knitr::opts_chunk$set(
   strip.white = TRUE,
   
   # code decoration
-  #tidy = TRUE,
   tidy.opts = list(width.cutoff = 90),
   comment = '',
   attr.output='.numberLines',
   
   # plots
-  #fig.path = "figure/",      # is set later, in chunk setup2
   fig.show = "asis",         # tuned to "hold" in multiple plots chunk
   dev = c('png', 'pdf'),
   fig.width = 12,
   fig.height = 12,
-  #fig.asp=1.3               # fig.height = fig.width * fig.asp
-  #out.extra = 'style="border:5px solid orange"'     # orange box arround plots
   fig.align = "center"       # should be tuned to default in multiple plots chunk
 )
 ```
@@ -183,10 +179,10 @@ set.seed(general.seed)
 ```
 
 ```{r sourceCodes}
-source("./utilities/extract_topn.R")
-source("./utilities/add_dominantMetadata.R")
-source("./utilities/additionalPlots.R")
-source("./utilities/00_generalDeps.R")
+source("../utilities/extract_topn.R")
+source("../utilities/add_dominantMetadata.R")
+source("../utilities/additionalPlots.R")
+source("../utilities/00_generalDeps.R")
 ```
 
 
@@ -242,7 +238,6 @@ inputs.folder <- file.path(basePath, "inputData")
 
 mmgLab.data <- file.path(inputs.folder, "lab_data")
 atlas.folder <- file.path(inputs.folder, "atlas")
-#classifier.folder <- file.path(inputs.folder, "scmap_pijuansala_classifier")
 inputTables.folder <- file.path(inputs.folder, "InputTables")
 otherInputs <- file.path(inputs.folder, "other")
 ```
@@ -617,17 +612,6 @@ That is to say the data must have a cell identity label. Also, DoubletFinder req
 
 ## Preprocessing workflow (before doublet removal) {.tabset .tabset-pills .tabset-fade}
 
-<!-- ```{r show-slots, eval=FALSE, echo=FALSE} -->
-<!-- data.frame(GetAssayData(SO, slot = "counts")[1:5,1:5]) %>% -->
-<!--   knitr::kable(caption = "Raw counts in 'counts' slot") %>%  -->
-<!--   kable_styling(bootstrap_options = c("striped", "hover")) %>% -->
-<!--   scroll_box(width = "800px", height = "300px") -->
-<!-- data.frame(GetAssayData(SO, slot = "data")[1:5,1:5]) %>% -->
-<!--   knitr::kable(caption = "Normalized counts in 'data' slot") %>%  -->
-<!--   kable_styling(bootstrap_options = c("striped", "hover")) %>% -->
-<!--   scroll_box(width = "800px", height = "300px") -->
-<!-- ``` -->
-
 ```{r hvg-vst1, eval=hvg.meth != "mvp", echo=hvg.meth != "mvp"}
 SO <- NormalizeData(SO, normalization.method = norm.meth, verbose=FALSE)
 SO <- FindVariableFeatures(SO, nfeatures=hvg.num, selection.method = hvg.meth, verbose=FALSE)
@@ -708,10 +692,6 @@ anchors <- FindTransferAnchors(reference = atlas.subset, query = SO,
 predictions <- TransferData(anchorset = anchors, refdata = atlas.subset$celltype,
                             dims = 1:top.pcs)
 SO <- AddMetaData(SO, metadata = predictions[,"predicted.id"], col.name = "celltype_DF")
-
-# write.table(x = predictions, file = file.path(dataset.anFolder,
-#                                                paste0("cellIdent_Predictions_DF_", 
-#                                                       dataset, ".csv")), sep = ",", row.names = F, col.names = T)
 
 rm(predictions)
 invisible(gc())
@@ -823,15 +803,6 @@ grid::grid.draw(grid::textGrob(xlab, y = 0.02))
 
 
 ```{r df-count-celltypeDF}
-# celltypeDF <- as.data.frame(table(Idents(SO), SO@meta.data$celltype_DF))
-# head(celltypeDF)
-# 
-# ggplot(celltypeDF, aes(x = Var2, y=Freq, fill=Var1)) +
-#     geom_bar(stat = 'identity') +
-#     geom_text(aes(label=Freq), x=1500) +
-#     coord_flip()
-
-
 celltypeMtx <- as.data.frame.matrix(table(Idents(SO), SO@meta.data$celltype_DF))
 celltypeMtx %>%
   knitr::kable(caption = "Doublet ratio over celltypes got from Rossi et al. classifier") %>% 
@@ -840,11 +811,6 @@ celltypeMtx %>%
 
 clustersRes <- grep(paste0("res.", res, "$"), colnames(SO@meta.data), value=TRUE)
 clusterDF <- as.data.frame.matrix(table(Idents(SO), SO@meta.data[,which(colnames(SO@meta.data) == clustersRes)])) 
-
-# ggplot(clusterDF, aes(x = grep(paste0("res.", res, "$"), colnames(SO@meta.data), value=TRUE),
-#                       fill = grep("DF.classifications", colnames(SO@meta.data), value=TRUE))) +
-#     geom_bar() +
-#     theme_classic()
 
 clusterDF %>%
   knitr::kable(caption = paste0("Doublet ratio over clusters at resolution ", res)) %>% 
@@ -927,29 +893,6 @@ SOsing <- RunPCA(SOsing, npcs = pca.npcs, nfeatures.print = pca.print, seed.use 
 resolutions <- c(seq(0.1, 0.4, 0.1), seq(0.6, 1.6, 0.2))
 SOsing <- FindNeighbors(SOsing, dims = 1:top.pcs, verbose=FALSE)
 SOsing <- FindClusters(SOsing, resolution = resolutions, algorithm = algo.cluster, random.seed = general.seed, verbose=FALSE)
-# SOsing <- RunUMAP(SOsing, dims = 1:top.pcs, seed.use = general.seed, verbose = FALSE)
-# 
-# invisible(sapply(resolutions, function(ares)
-# {
-#     cat("## Res.  ", ares, "\n")
-#     
-#     clusterResName <- grep(paste0("RNA_snn_res.", ares, "$"), colnames(SOsing@meta.data), value = TRUE)
-#     Idents(SOsing) <- clusterResName
-#     
-#     print(DimPlot(SOsing,
-#                    pt.size = 1,
-#                    label = TRUE,
-#                    label.size = 6,
-#                    repel = TRUE) +
-#                NoLegend() +
-#                ggtitle(paste0(dataset, " : clusters at resolution ", ares)) +
-#                theme(plot.title = element_text(hjust = 0.5),
-#                      axis.text = element_blank(),
-#                      line = element_blank())
-#     )
-# 
-#     cat(" \n \n") # Required for '.tabset'
-# }))
 ```
 
 ```{r save4}
@@ -1165,7 +1108,6 @@ ggplot(cellsData[cellsData$day != grep("^Day_", cellsData$day, value = TRUE),], 
     geom_point( alpha = .5,
                 size  = 1.2) +
     theme_void() +
-    #geom_text_repel() +
     ggtitle(paste0("Atlas stages\n", dataset)) +
     theme(plot.title = element_text(hjust = 0.5),
           axis.text = element_blank(),
@@ -1258,15 +1200,6 @@ for(i in unique(atlas.subset$celltype)){
   x_ref[i,2] <- mean(atlas.subset[["umap200"]]@cell.embeddings[intersect(cells.use,names(atlas.subset$celltype[atlas.subset$celltype==i])),2])
   x_ref[i,3] <- mean(atlas.subset[["umap200"]]@cell.embeddings[intersect(cells.use,names(atlas.subset$celltype[atlas.subset$celltype==i])),3])
 }
-
-# x_ref$celltype <- rownames(x_ref)
-# colnames(x_ref) <- c("umap200_1", "umap200_2", "umap200_3", "celltype")
-# ggplot(x_ref, aes(x=umap200_1, y=umap200_2, colour=celltype)) +
-#     geom_point(size = 15, alpha=0.7) +
-#     scale_color_manual(values = colors.celltype[levels(Idents(atlas.subset))]) +
-#     NoLegend() +
-#     geom_label_repel(aes(label=celltype),
-#                      box.padding   = 0.1)
 ```
 
 ### Create random initial coordinates for the integrated object based on the centroid table
@@ -1522,7 +1455,6 @@ knitr::opts_chunk$set(
 # Differential expression analysis
 
 ```{r selected-resolution}
-#SO$seurat_clusters <- NULL
 selectedRes <- grep(paste0(DefaultAssay(SOsing), ".*res.", res, "$"), colnames(SOsing@meta.data), value=TRUE)
 SOsing$clusters <- SOsing[[selectedRes]]
 Idents(SOsing) <- SOsing$clusters
@@ -1530,7 +1462,6 @@ Idents(SOsing) <- SOsing$clusters
 DefaultAssay(SOsing) <- 'RNA'
 
 markers <- FindAllMarkers(SOsing, only.pos = TRUE)
-#markers.sign <- markers[markers$p_val_adj < 0.001 & markers$avg_logFC > log(1.5), ]
 markers.sign <- markers[order(-markers$avg_log2FC), ]
 markers.sign <- markers.sign[order(markers.sign$cluster), ]
 markers.sign <- markers.sign[ , c(6, 7, 2:4, 1, 5)]
@@ -1659,10 +1590,6 @@ invisible( lapply( names( topMarkers), function(clusterName)
 }))
 ```
 
-<!-- ```{r cluster-featurePlot-markers} -->
-<!-- ## FeaturePlot the genes of interest -->
-<!-- doFeaturePlot(SOsing, topNgenes) -->
-<!-- ``` -->
 
 ### FeaturePlots of the genes of interest with cluster labels
 

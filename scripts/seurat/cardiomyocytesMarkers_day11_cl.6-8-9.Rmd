@@ -80,19 +80,15 @@ knitr::opts_chunk$set(
   strip.white = TRUE,
   
   # code decoration
-  #tidy = TRUE,
   tidy.opts = list(width.cutoff = 90),
   comment = '',
   attr.output='.numberLines',
   
   # plots
-  #fig.path = "figure/",      # is set later, in chunk setup2
   fig.show = "asis",         # tuned to "hold" in multiple plots chunk
   dev = c('png', 'pdf'),
   fig.width = 8,
   fig.height = 8,
-  #fig.asp=1.3               # fig.height = fig.width * fig.asp
-  #out.extra = 'style="border:5px solid orange"'     # orange box arround plots
   fig.align = "center"       # should be tuned to default in multiple plots chunk
 )
 ```
@@ -183,7 +179,6 @@ pover2 <- DimPlot(
     theme(plot.title = element_text(hjust = 0.5),
           axis.text = element_blank(),
           line = element_blank())
-#pover2 <- LabelClusters(pover2, id = "ident",  fontface = "bold", size = 5)
 
 p1 <- DimPlot(SO, reduction = "umap2d")
 p2 <- cowplot::get_legend(p1)
@@ -228,9 +223,6 @@ pinterest
 pct.1 refers to the percentage of cells where the feature is detected in the cluster 18.  
 pct.2 refers to the percentage of cells where the feature is detected in the cluster 16.
 
-<!-- A positive value of the `avg_log2FC` means that the gene is a marker of the cluster 18. -->
-<!-- In the opposite, a negative value of the `avg_log2FC` means that the gene is a marker of the cluster 16. -->
-
 ```{r markers-18versus16}
 Idents(SO) <- clusterResName
 markers18vs16 <- FindMarkers(SO, ident.1 = "18", ident.2 = "16", only.pos = TRUE)
@@ -255,9 +247,6 @@ invisible( lapply( topNmarkers[["gene"]], function(featureName) {
                theme_void() +
                NoLegend() +
                CenterTitle())
-               # theme( axis.title.x = element_blank(),
-               #        axis.title.y = element_blank(),
-               #        legend.position = "none"))
 }))
 ```
 
@@ -269,51 +258,6 @@ invisible( lapply( topNmarkers[["gene"]], function(featureName) {
 # Violinplot for expression value of marker genes by cluster (+ number of 'zero' and 'not zero' cells)
 invisible( lapply( topNmarkers[["gene"]], violinFeatureByCluster, seuratObject = SO, clustersColor = clustersColor))
 ```
-
-<!-- ## Top 20 markers table of cluster 16 against cluster 18 -->
-
-<!-- pct.1 refers to the percentage of cells where the feature is detected in the cluster 18.   -->
-<!-- pct.2 refers to the percentage of cells where the feature is detected in the cluster 16. -->
-
-<!-- ```{r markers-16versus18} -->
-<!-- Idents(SO) <- clusterResName -->
-<!-- markers18vs16 <- FindMarkers(SO, ident.1 = "16", ident.2 = "18", only.pos = TRUE) -->
-<!-- markers18vs16 <- rownames_to_column(markers18vs16, var = "gene") -->
-<!-- markers18vs16 <- markers18vs16[order(-markers18vs16$avg_log2FC), ] -->
-<!-- markers18vs16 <- markers18vs16[, c(1,3:5,2,6)] -->
-
-<!-- write.table(x = markers18vs16, file = paste0("../../../seuratAnalysis/ciml5/lab_day_11/markers_min.pct_logFC_default_", dataset, "_res_1_clusters_16vs18.csv"), sep = ",", row.names = F, col.names = T) -->
-
-<!-- topNmarkers <- extract_topn(markers18vs16, topn = 20) -->
-
-<!-- write.table(x = topNmarkers, file = paste0("../../../seuratAnalysis/ciml5/lab_day_11/top_20_markers_", dataset, "_res_1_clusters_16vs18.csv"), sep = ",", row.names = F, col.names = T) -->
-
-<!-- datatable(topNmarkers, rownames = FALSE, filter = "top", options = list(pageLength = 5, scrollX=T)) -->
-<!-- ``` -->
-
-<!-- ## FeaturePlots of the top 20 markers -->
-
-<!-- ```{r featurePlot-16versus18, out.width='20%', fig.align='default'} -->
-<!-- invisible( lapply( topNmarkers[["gene"]], function(featureName) { -->
-<!--     print( FeaturePlot( SO, features = featureName, reduction = ifelse( exists("useReduction"), useReduction, "umap2d"), order = TRUE) + -->
-<!--                theme_void() + -->
-<!--                NoLegend() + -->
-<!--                CenterTitle()) -->
-<!--                # theme( axis.title.x = element_blank(), -->
-<!--                #        axis.title.y = element_blank(), -->
-<!--                #        legend.position = "none")) -->
-<!-- })) -->
-<!-- ``` -->
-
-<!-- ## ViolinPlots of the markers -->
-
-<!-- ```{r violinPlots-16versus18, results='asis', out.width='20%', fig.align='default'} -->
-<!-- # with courtesy of Lionel Spinelli and Romain Fenouil -->
-
-<!-- # Violinplot for expression value of marker genes by cluster (+ number of 'zero' and 'not zero' cells) -->
-<!-- invisible( lapply( topNmarkers[["gene"]], violinFeatureByCluster, seuratObject = SO, clustersColor = clustersColor)) -->
-<!-- ``` -->
-
 
 # Differential expression among Cardiomyocytes {.tabset  .tabset-pills .tabset-fade}
 
@@ -339,7 +283,6 @@ pbothFilters <- ggplot(cellsData[c('UMAP2d_1', 'UMAP2d_2')], # Omit the column u
                       aesthetics = "color",
                       breaks = sort(as.integer(levels(as.factor(cellsData$cluster)))),
                       name = "cluster") +
-    # scale_fill_manual(values = clustersColor[cellsData$cluster], aesthetics = "color") +
     theme_void() +
     ggtitle(paste0(dataset, " : subset on clusters 6, 8, 9 and 18\nand on Cardiomyocytes")) +
     theme(plot.title = element_text(hjust = 0.5),
@@ -364,9 +307,6 @@ markersCadio <- FindAllMarkers(bothFilters, only.pos = TRUE)
 markersCadio <- markersCadio[order(-markersCadio$avg_log2FC), ]
 markersCadio <- markersCadio[order(markersCadio$cluster), ]
 markersCadio <- markersCadio[ , c(6, 7, 2:4, 1, 5)]
-# markersCadio <- rownames_to_column(markersCadio, var = "gene")
-# markersCadio <- markersCadio[order(-markersCadio$avg_log2FC), ]
-# markersCadio <- markersCadio[, c(1,3:5,2,6)]
 
 write.table(x = markersCadio, file = paste0("../../../seuratAnalysis/ciml5/lab_day_11/markers_min.pct_logFC_default_", dataset, "_res_1_cardioMandClusters.6-8-9.csv"), sep = ",", row.names = F, col.names = T)
 
@@ -404,9 +344,6 @@ invisible( lapply( names( topMarkers), function(clusterName)
                theme_void() +
                NoLegend() +
                CenterTitle())
-               # theme( axis.title.x = element_blank(),
-               #        axis.title.y = element_blank(),
-               #        legend.position = "none"))
   }))
   
   cat(" \n \n") # Required for '.tabset'
