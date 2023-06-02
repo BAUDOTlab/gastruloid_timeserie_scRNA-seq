@@ -487,7 +487,7 @@ These cells have less than `r min.feat` feature counts.
 ## Repartition of detected features
 
 Features that are detected in `r min.cells` cells or fewer will be removed from the analysis.
-Among the `r dim(SO[1])` features mentioned after loading, some of them were never detected.
+Among the `r dim(SO)[1]` features mentioned after loading, some of them were never detected.
 
 ```{r plot-geneRepartition}
 # Create dataframe
@@ -740,7 +740,7 @@ pK <- bcmvn_SO %>% # select the pK that corresponds to max bcmvn to optimize dou
   select(pK) 
 pK <- as.numeric(as.character(pK[[1]]))
 ```
-According to the above plot, the value of the `pK` parameter is set to `r print(pK)`.
+According to the above plot, the value of the `pK` parameter is set to `r pK`.
 
 ## Doublets identification - DoubletFinder run
 
