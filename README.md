@@ -18,6 +18,17 @@ curl https://content.cruk.cam.ac.uk/jmlab/atlas_data.tar.gz > atlas_data.tar.gz
 tar -zxvf atlas_data.tar.gz
 ```
 
+## Conda environment installation
+
+Multiple conda environment were set up for all the analysis. The conda environments are available in the requirements folder.
+To install an environment, you can run the following command:
+
+```
+conda env create -f environment.yml
+```
+
+where environment.yml is the file name of the environment you want to install.
+
 ## Seurat analysis
 
 Before running the following command, please go to the seurat directory:
