@@ -2,13 +2,12 @@
 
 First, activate the environment, then install the packages
 
-## DoubletFinder
+## DoubletFinder ---------------------------------------------------
 ### The source of the tool
 
 https://github.com/chris-mcginnis-ucsf/DoubletFinder
 
 ### Installation
-
 In a R buffer:
 
 ```{r}
@@ -16,25 +15,17 @@ library(devtools)
 remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
 ```
 
+# destiny ---------------------------------------------------------
+## The source of the tool
 
-## leidenalg python package
+https://github.com/theislab/destiny
 
-In command line, enter:
-$ pip install leidenalg
-
-
-
-## Harmony
-
-### The source of the tool
-
-https://github.com/immunogenomics/harmony
-
-### Installation
-
+## Installation
 In a R buffer:
 
 ```{r}
-library(devtools)
-install_github("immunogenomics/harmony")
+BiocManager::install(c('destiny'), suppressUpdates=T)
 ```
+
+/!\ do not update the packages, it could lead to a broken environment.
+
